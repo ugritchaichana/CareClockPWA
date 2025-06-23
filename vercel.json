@@ -3,7 +3,6 @@
   "installCommand": "pnpm install",
   "framework": "nextjs",
   "env": {
-    "MONGODB_URI": "@mongodb_uri",
-    "MONGODB_DB": "@mongodb_db"
+    "MONGODB_URI": "mongodb+srv://ugritbooth:Duw6N7niwQfmAwvB@cluster0.46indno.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
   }
 }
