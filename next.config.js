@@ -1,9 +1,5 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // PWA configuration
-  experimental: {
-    appDir: true,
-  },
   // Mobile optimization
   compiler: {
     removeConsole: process.env.NODE_ENV === 'production',

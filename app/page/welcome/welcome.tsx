@@ -7,14 +7,19 @@ interface WelcomeProps {
 export default function Welcome({ onTabChange }: WelcomeProps) {
   return (
     <div className="flex-1 flex flex-col justify-center px-4 pb-24">
-      {/* Hero Section - น่ารัก */}
+      
       <div className="text-center mb-8">
         <div className="relative mb-4">
           <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto shadow-xl" style={{ 
-            background: 'linear-gradient(135deg, #FB929E, #AEDEFC)',
+            background: 'white',
             boxShadow: '0 10px 30px rgba(251, 146, 158, 0.3)'
           }}>
-            <span className="text-2xl">💊</span>
+            <img 
+              src="https://fcktqdzssxqvuzgdlemo.supabase.co/storage/v1/object/public/app-image//CareClockLOGO.PNG" 
+              alt="CareClock Logo" 
+              className="w-14 h-14 object-contain select-none"
+              onDragStart={(e) => e.preventDefault()}
+            />
           </div>
         </div>
         <h1 className="text-xl font-bold text-gray-700 mb-2">CareClock</h1>

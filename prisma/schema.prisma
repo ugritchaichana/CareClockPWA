@@ -1,0 +1,80 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Patient {
+  id              Int             @id @default(autoincrement())
+  prefix          String          @db.VarChar(20)
+  firstName       String          @db.VarChar(100)
+  lastName        String          @db.VarChar(100)
+  age             Int
+  phoneNumber     String          @unique @db.VarChar(20)
+  medicalRight    String?         @db.VarChar(100)
+  chronicDiseases String?
+  drugAllergy     String?
+  profileImageUrl String?
+  registeredAt    DateTime        @default(now()) @db.Timestamp(6)
+  createdAt       DateTime        @default(now()) @db.Timestamp(6)
+  updatedAt       DateTime        @updatedAt @db.Timestamp(6)
+  medicines       medicines[]
+  notifications   notifications[]
+  prescriptions   prescriptions[]
+
+  @@map("patients")
+}
+
+model medicines {
+  id            Int             @id @default(autoincrement())
+  patientId     Int
+  name          String          @db.VarChar(200)
+  dosage        String          @db.VarChar(100)
+  timeSchedule  Json            @default("[]")
+  isActive      Boolean         @default(true)
+  remainingDays Int?            @default(0)
+  notes         String?
+  imageUrl      String?
+  colorBg       String          @default("#FB929E") @db.VarChar(20)
+  colorText     String          @default("#FFFFFF") @db.VarChar(20)
+  createdAt     DateTime        @default(now()) @db.Timestamp(6)
+  updatedAt     DateTime        @db.Timestamp(6)
+  patients      Patient         @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  notifications notifications[]
+}
+
+model notifications {
+  id            Int        @id @default(autoincrement())
+  patientId     Int
+  medicineId    Int?
+  title         String     @db.VarChar(200)
+  message       String
+  scheduledTime DateTime   @db.Timestamp(6)
+  isCompleted   Boolean    @default(false)
+  isActive      Boolean    @default(true)
+  createdAt     DateTime   @default(now()) @db.Timestamp(6)
+  updatedAt     DateTime   @db.Timestamp(6)
+  medicines     medicines? @relation(fields: [medicineId], references: [id], onDelete: Cascade)
+  patients      Patient    @relation(fields: [patientId], references: [id], onDelete: Cascade)
+}
+
+model prescriptions {
+  id               Int       @id @default(autoincrement())
+  patientId        Int
+  title            String    @db.VarChar(200)
+  description      String?
+  imageUrl         String
+  filePath         String
+  fileSize         Int?
+  fileType         String?   @db.VarChar(50)
+  prescriptionDate DateTime? @db.Date
+  doctorName       String?   @db.VarChar(100)
+  hospitalName     String?   @db.VarChar(200)
+  isActive         Boolean   @default(true)
+  createdAt        DateTime  @default(now()) @db.Timestamp(6)
+  updatedAt        DateTime  @db.Timestamp(6)
+  patients         Patient   @relation(fields: [patientId], references: [id], onDelete: Cascade)
+}

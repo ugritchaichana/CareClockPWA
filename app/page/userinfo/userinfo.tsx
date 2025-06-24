@@ -2,7 +2,10 @@
 
 import { useEffect, useState } from 'react'
 import { localStorageService } from '../../../lib/localStorage'
+import { useRouter } from 'next/navigation'
+import LoadingSpinner from '@/components/LoadingSpinner' // Import the spinner
 
+// Corrected PatientData interface
 interface PatientData {
   prefix: string
   firstName: string
@@ -10,9 +13,10 @@ interface PatientData {
   age: number
   phoneNumber: string
   medicalRight: string
-  chronicDiseases: string
-  profileImage: string
-  registeredAt: string
+  chronicDiseases: string | null
+  drugAllergy: string | null
+  profileImageUrl: string | null // Corrected field name
+  registeredAt?: string
 }
 
 const prefixOptions = [
@@ -44,20 +48,25 @@ const themeColors = {
 }
 
 export default function UserInfo() {
+  const router = useRouter()
   const [isRegistered, setIsRegistered] = useState(false)
   const [showAuthForm, setShowAuthForm] = useState(false)
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login')
   const [patientData, setPatientData] = useState<PatientData | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [imagePreview, setImagePreview] = useState<string>('')
+  const [rawFile, setRawFile] = useState<File | null>(null) // State for the actual file
+  const [isEditing, setIsEditing] = useState(false) // State to track editing mode
   const [customPrefix, setCustomPrefix] = useState('')
   const [customMedicalRight, setCustomMedicalRight] = useState('')
-  const [dataSource, setDataSource] = useState<'database' | 'localStorage' | null>(null)
-  
+  const [dataSource, setDataSource] = useState<'database' | 'loading' | 'offline' | null>(null)
+  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false)
+  const [loginError, setLoginError] = useState('')
+
   // Login form state
   const [loginPhone, setLoginPhone] = useState('')
   
-  // Form state
+  // Updated form state
   const [formData, setFormData] = useState({
     prefix: '',
     firstName: '',
@@ -66,7 +75,7 @@ export default function UserInfo() {
     phoneNumber: '',
     medicalRight: '',
     chronicDiseases: '',
-    profileImage: ''
+    drugAllergy: '', // Added drugAllergy
   })
   const formatPhoneNumber = (value: string) => {
     if (!value) return value;
@@ -90,8 +99,8 @@ export default function UserInfo() {
       console.log('✅ Patient data found in localStorage, setting states...')
       setPatientData(savedData)
       setIsRegistered(true)
-      setImagePreview(savedData.profileImage || '')
-      setDataSource('localStorage')
+      setImagePreview(savedData.profileImageUrl || '') // Use profileImageUrl
+      setDataSource('loading') // Set loading state initially
       console.log('📊 States set from localStorage - isRegistered: true')
       
       // Also verify with database in background and update if different
@@ -109,17 +118,17 @@ export default function UserInfo() {
             if (JSON.stringify(result.data) !== JSON.stringify(savedData)) {
               console.log('🔄 Data differs, updating from database...')
               setPatientData(result.data)
-              setImagePreview(result.data.profileImage || '')
-              setDataSource('database')
+              setImagePreview(result.data.profileImageUrl || '') // Use profileImageUrl
               localStorageService.setItem('patient-data', result.data)
-            } else {
-              setDataSource('database') // Data is same but confirmed from database
             }
+            setDataSource('database') // Successfully synced with database
           })
           .catch(error => {
             console.log('⚠️ Background database sync failed:', error)
-            // Keep localStorage source indicator
+            setDataSource('offline') // Failed to sync or offline
           })
+      } else {
+        setDataSource('offline') // No phone number to verify
       }
     } else {
       console.log('❌ No saved patient data found in localStorage')
@@ -127,115 +136,111 @@ export default function UserInfo() {
   }, [])
   
   const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault()
+    e.preventDefault() // Prevent form from reloading the page
+    setLoginError('')
     console.log('🔐 Login attempt started...')
     console.log('📱 Login phone:', loginPhone)
     
     if (!loginPhone) {
-      console.log('❌ No phone number provided')
-      alert('กรุณากรอกเบอร์มือถือ')
       return
     }
 
-    // Remove formatting for comparison
     const phoneDigits = loginPhone.replace(/[^\d]/g, '')
     console.log('🔢 Phone digits:', phoneDigits)
     
     if (phoneDigits.length !== 10) {
-      console.log('❌ Phone number not 10 digits')
-      alert('กรุณากรอกเบอร์มือถือให้ครบ 10 หลัก')
       return
     }
 
     setIsLoading(true)
     console.log('⏳ Loading started...')
-      try {
-      // Query database directly (no localStorage fallback for login)
-      console.log('🌐 Checking database for login...')
-      const response = await fetch(`/api/data?type=patient-data&phoneNumber=${phoneDigits}`)
-      
-      if (response.ok) {
-        const dbResult = await response.json()
-        console.log('✅ Login successful - data found in database:', dbResult)
-          const patientInfo = dbResult.data
-        setPatientData(patientInfo)
+    try {
+      const response = await fetch(`/api/user/login?phoneNumber=${phoneDigits}`)
+
+      if (response.status === 404) {
+        setLoginError('ไม่พบข้อมูลผู้ใช้ กรุณาลงทะเบียนก่อน')
+      } else if (!response.ok) {
+        throw new Error('Login failed')
+      } else {
+        const result = await response.json()
+        console.log('✅ Login success:', result)
+        setPatientData(result.data)
         setIsRegistered(true)
         setShowAuthForm(false)
-        setLoginPhone('')
-        setImagePreview(patientInfo.profileImage || '')
+        localStorageService.setItem('patient-data', result.data)
         setDataSource('database')
-        
-        // Save to localStorage for display purposes only
-        localStorageService.setItem('patient-data', patientInfo)
-        
-        console.log('📊 Login states set - isRegistered: true, showAuthForm: false')
-        alert('เข้าสู่ระบบสำเร็จ!')
-      } else if (response.status === 404) {
-        console.log('❌ Login failed - user not found in database')
-        alert('ไม่พบข้อมูลผู้ใช้ในระบบ กรุณาลงทะเบียนก่อน')
-      } else {
-        throw new Error('Database connection failed')
       }
     } catch (error) {
-      console.error('❌ Login error:', error)
-      alert('ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้ กรุณาลองใหม่อีกครั้ง')
+      console.error('Login Error:', error)
+      setLoginError('เกิดข้อผิดพลาดในการเข้าสู่ระบบ')
     } finally {
       setIsLoading(false)
-      console.log('⏳ Loading finished')
+      console.log('🏁 Loading finished.')
     }
   }
 
   const handleLogout = () => {
-    if (confirm('คุณต้องการออกจากระบบใช่หรือไม่?')) {
-      setPatientData(null)
-      setIsRegistered(false)
-      setFormData({
-        prefix: '',
-        firstName: '',
-        lastName: '',
-        age: '',
-        phoneNumber: '',
-        medicalRight: '',
-        chronicDiseases: '',
-        profileImage: ''
-      })
-      setImagePreview('')
-      setCustomPrefix('')
-      setCustomMedicalRight('')
-    }
+    setIsLogoutModalOpen(true)
+  }
+
+  const confirmLogout = () => {
+    localStorageService.removeItem('patient-data')
+    console.log('✅ Data removed from localStorage')
+
+    setPatientData(null)
+    setIsRegistered(false)
+    setShowAuthForm(false)
+    setLoginPhone('')
+    setImagePreview('')
+    setRawFile(null)
+    setFormData({
+      prefix: '',
+      firstName: '',
+      lastName: '',
+      age: '',
+      phoneNumber: '',
+      medicalRight: '',
+      chronicDiseases: '',
+      drugAllergy: '',
+    })
+    setCustomPrefix('')
+    setCustomMedicalRight('')
+    setIsLogoutModalOpen(false)
+  }
+
+  const cancelLogout = () => {
+    setIsLogoutModalOpen(false)
   }
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
 
     if (name === 'phoneNumber') {
-      setFormData(prev => ({
-        ...prev,
-        [name]: formatPhoneNumber(value)
-      }));
+      setFormData({ ...formData, phoneNumber: formatPhoneNumber(value) })
     } else {
-      setFormData(prev => ({
-        ...prev,
-        [name]: value
-      }));
+      setFormData({ ...formData, [name]: value })
     }
   }
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
+      const allowedTypes = ['image/jpeg', 'image/png'];
+      if (!allowedTypes.includes(file.type)) {
+        // alert('กรุณาอัปโหลดไฟล์รูปภาพนามสกุล .png, .jpg หรือ .jpeg เท่านั้น');
+        e.target.value = ''; // Clear the file input
+        return;
+      }
+
       const reader = new FileReader()
-      reader.onload = (event) => {
-        const base64String = event.target?.result as string
-        setImagePreview(base64String)
-        setFormData(prev => ({
-          ...prev,
-          profileImage: base64String
-        }))
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string)
       }
       reader.readAsDataURL(file)
+      setRawFile(file)
     }
   }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
@@ -244,99 +249,79 @@ export default function UserInfo() {
       const finalPrefix = formData.prefix === 'อื่นๆ' ? customPrefix : formData.prefix
       const finalMedicalRight = formData.medicalRight === 'อื่นๆ' ? customMedicalRight : formData.medicalRight
 
-      // Validate required fields
       if (!finalPrefix || !formData.firstName || !formData.lastName || !formData.age || !formData.phoneNumber) {
-        alert('กรุณากรอกข้อมูลที่จำเป็นให้ครบถ้วน')
         setIsLoading(false)
         return
       }
 
       const phoneDigits = formData.phoneNumber.replace(/[^\d]/g, '')
       if (phoneDigits.length !== 10) {
-        alert('กรุณากรอกเบอร์มือถือให้ครบ 10 หลัก')
         setIsLoading(false)
         return
-      }      // Check if this is an edit or new registration
-      const isEditing = patientData !== null
-
-      console.log('🔍 Edit detection:', { 
-        isEditing, 
-        patientDataExists: patientData !== null,
-        patientData: patientData,
-        authMode: authMode 
-      })
-
-      const patientInfo: PatientData = {
-        ...formData,
-        prefix: finalPrefix,
-        medicalRight: finalMedicalRight,
-        age: parseInt(formData.age),
-        phoneNumber: phoneDigits,
-        registeredAt: isEditing ? patientData.registeredAt : new Date().toISOString()
       }
 
-      console.log('💾 Saving patient data...', { isEditing, patientInfo })      // Save to MongoDB only
-      console.log('🌐 Preparing to send data to API...')
-      const payload = {
-        type: 'patient-data',
-        action: isEditing ? 'update' : 'create',
-        phoneNumber: phoneDigits, // Use as unique identifier
-        data: patientInfo
+      const formDataPayload = new FormData()
+
+      // Append all text fields
+      formDataPayload.append('prefix', finalPrefix)
+      formDataPayload.append('firstName', formData.firstName)
+      formDataPayload.append('lastName', formData.lastName)
+      formDataPayload.append('age', formData.age)
+      formDataPayload.append('phoneNumber', phoneDigits)
+      formDataPayload.append('medicalRight', finalMedicalRight)
+      formDataPayload.append('chronicDiseases', formData.chronicDiseases || '')
+      formDataPayload.append('drugAllergy', formData.drugAllergy || '')
+
+      // Append the file if it exists
+      if (rawFile) {
+        formDataPayload.append('profileImg', rawFile)
       }
-      console.log('📦 API Payload:', JSON.stringify(payload, null, 2))
-      
-      const response = await fetch('/api/data', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload)
+
+      const apiEndpoint = isEditing ? '/api/user/update' : '/api/user/register'
+      const apiMethod = isEditing ? 'PUT' : 'POST'
+
+      console.log(`Sending data to ${apiEndpoint} via ${apiMethod}`)
+
+      const response = await fetch(apiEndpoint, {
+        method: apiMethod,
+        body: formDataPayload, // Browser will set Content-Type to multipart/form-data
       })
 
       console.log('📡 API Response status:', response.status)
       console.log('📡 API Response ok:', response.ok)
 
       if (!response.ok) {
-        const errorText = await response.text()
-        console.error('❌ API Error response:', errorText)
-        
-        // Parse error message for better user feedback
-        let errorMessage = 'เกิดข้อผิดพลาดในการบันทึกข้อมูล'
-        try {
-          const errorData = JSON.parse(errorText)
-          if (errorData.error === 'Patient with this phone number already exists') {
-            errorMessage = 'เบอร์โทรศัพท์นี้มีการลงทะเบียนแล้ว กรุณาใช้เบอร์อื่น หรือเข้าสู่ระบบด้วยเบอร์นี้'
-          }
-        } catch (e) {
-          // Use default error message
-        }
-        
-        alert(errorMessage)
-        setIsLoading(false)
-        return
-      }      const dbResult = await response.json()
-      console.log('✅ Data saved to MongoDB:', dbResult)
-        // Update localStorage only after successful database save
-      localStorageService.setItem('patient-data', patientInfo)
-      console.log('✅ Data updated in localStorage after database save')
-      
-      setPatientData(patientInfo)
-      setIsRegistered(true)
-      setShowAuthForm(false)
-      setDataSource('database')
+        const errorResult = await response.json()
+        console.error('❌ API Error response:', errorResult)
+        throw new Error(errorResult.message || 'An error occurred while saving data.')
+      }
 
-      setCustomPrefix('')
-      setCustomMedicalRight('')
+      const result = await response.json()
+      console.log('✅ API Success response:', result)
 
-      // Show success message
-      alert(isEditing ? 'แก้ไขข้อมูลสำเร็จ!' : 'ลงทะเบียนเรียบร้อยแล้ว!')    } catch (error) {
-      console.error('Registration error:', error)
-      alert('เกิดข้อผิดพลาดในการลงทะเบียน')
+      const updatedPatientData = result.data
+      localStorageService.setItem('patient-data', updatedPatientData) // Corrected key
+      setPatientData(updatedPatientData)
+      setRawFile(null)
+
+
+      if (isEditing) {
+        setIsEditing(false)
+        setShowAuthForm(false)
+      } else {
+        // This is a new registration, so we can clear the form
+        // and switch to the "registered" view.
+        setShowAuthForm(false)
+        setIsRegistered(true)
+      }
+    } catch (error) {
+      console.error('An unexpected error occurred:', error)
     } finally {
       setIsLoading(false)
     }
   }
-    const handleEdit = () => {
+
+  const handleEdit = () => {
     console.log('🔧 handleEdit clicked!')
     console.log('📋 Current patientData:', patientData)
     
@@ -362,8 +347,8 @@ export default function UserInfo() {
         age: patientData.age.toString(),
         phoneNumber: formatPhoneNumber(patientData.phoneNumber),
         medicalRight: isCustomMedicalRight ? 'อื่นๆ' : patientData.medicalRight,
-        chronicDiseases: patientData.chronicDiseases,
-        profileImage: patientData.profileImage
+        chronicDiseases: patientData.chronicDiseases || '',
+        drugAllergy: patientData.drugAllergy || '', // Add drugAllergy
       }
       
       console.log('📝 Setting form data:', newFormData)
@@ -383,75 +368,22 @@ export default function UserInfo() {
         setCustomMedicalRight('')
       }
 
-      console.log('🖼️ Setting image preview:', patientData.profileImage ? 'Image exists' : 'No image')
-      setImagePreview(patientData.profileImage || '')
+      console.log('🖼️ Setting image preview:', patientData.profileImageUrl ? 'Image exists' : 'No image')
+      setImagePreview(patientData.profileImageUrl || '') // Use profileImageUrl
       
       console.log('🔄 Switching to register mode and showing form...')
+      setIsEditing(true) // Set editing mode
       setAuthMode('register')
       setShowAuthForm(true)
       
       console.log('✨ Edit process completed!')
     } else {      console.log('❌ No patient data found!')
-      alert('ไม่พบข้อมูลผู้ใช้ กรุณาลงทะเบียนก่อน')
-    }
-  }
-
-  const handleDelete = async () => {
-    if (confirm('คุณต้องการลบข้อมูลการลงทะเบียนใช่หรือไม่?')) {
-      console.log('🗑️ Starting delete process...')
-      
-      if (patientData?.phoneNumber) {
-        try {
-          console.log('🌐 Attempting to delete from database...')
-          const phoneDigits = patientData.phoneNumber.replace(/[^\d]/g, '')
-          
-          const response = await fetch(`/api/data?type=patient-data&phoneNumber=${phoneDigits}`, {
-            method: 'DELETE'
-          })
-          
-          if (response.ok) {
-            const result = await response.json()
-            console.log('✅ Successfully deleted from database:', result)
-          } else {
-            console.log('⚠️ Could not delete from database, continuing with local deletion')
-          }
-        } catch (error) {
-          console.error('❌ Error deleting from database:', error)
-          console.log('⚠️ Continuing with local deletion despite database error')
-        }      }
-      
-      // Remove from localStorage and reset state
-      localStorageService.removeItem('patient-data')
-      console.log('✅ Data removed from localStorage')
-      
-      setPatientData(null)
-      setIsRegistered(false)
-      setFormData({
-        prefix: '',
-        firstName: '',
-        lastName: '',
-        age: '',
-        phoneNumber: '',
-        medicalRight: '',
-        chronicDiseases: '',
-        profileImage: ''
-      })
-      setImagePreview('')
-      setCustomPrefix('')
-      setCustomMedicalRight('')
     }
   }
 
   return (
     <div className="flex-1 px-4 pb-24 overflow-y-auto">
       <div className="container mx-auto max-w-2xl">
-        {/* Debug info */}
-        {process.env.NODE_ENV === 'development' && (
-          <div className="mb-4 p-2 bg-yellow-100 text-xs rounded">
-            Debug: isRegistered={isRegistered.toString()}, showAuthForm={showAuthForm.toString()}, authMode={authMode}, patientData={patientData ? 'exists' : 'null'}
-          </div>
-        )}
-        
         {isRegistered && patientData && !showAuthForm ? (
           // Display Patient Data
           <div className="space-y-6">
@@ -466,8 +398,8 @@ export default function UserInfo() {
                       border: '4px solid #FB929E',
                       boxShadow: '0 10px 30px rgba(251, 146, 158, 0.3)'
                     }}>
-                      {patientData.profileImage ? (
-                        <img src={patientData.profileImage} alt="Profile" />
+                      {patientData.profileImageUrl ? (
+                        <img src={patientData.profileImageUrl} alt="Profile" />
                       ) : (
                         <div className="flex items-center justify-center text-white" style={{ background: 'linear-gradient(135deg, #FB929E, #AEDEFC)' }}>
                           <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -487,27 +419,15 @@ export default function UserInfo() {
 
             <div className="grid gap-4">
               <div className="card bg-white/90 shadow-xl rounded-3xl" style={{ border: '2px solid #AEDEFC' }}>
-                <div className="card-body">
-                  <h2 className="card-title text-gray-700 flex items-center gap-2">
+                <div className="card-body">                  <h2 className="card-title text-gray-700 flex items-center gap-2">
                     <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#AEDEFC' }}>
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
                     </div>
                     ข้อมูลการติดต่อ
-                  </h2>                  <div className="space-y-2">
+                  </h2>                <div className="space-y-2">
                     <p className="text-gray-600"><strong>📞 เบอร์โทรศัพท์:</strong> {patientData.phoneNumber ? formatPhoneNumber(patientData.phoneNumber) : 'ไม่ระบุ'}</p>
-                    {dataSource && (
-                      <p className="text-sm flex items-center gap-2">
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          dataSource === 'database' 
-                            ? 'bg-green-100 text-green-800' 
-                            : 'bg-yellow-100 text-yellow-800'
-                        }`}>
-                          {dataSource === 'database' ? '🌐 ข้อมูลจากเซิร์ฟเวอร์' : '💾 ข้อมูลจากเครื่อง'}
-                        </span>
-                      </p>
-                    )}
                   </div>
                 </div>
               </div>              <div className="card bg-white/90 shadow-xl rounded-3xl border-2" style={{ borderColor: themeColors.lightPink }}>
@@ -515,7 +435,7 @@ export default function UserInfo() {
                   <h2 className="card-title flex items-center gap-2" style={{ color: themeColors.textPrimary }}>
                     <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: themeColors.pink }}>
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 00-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                       </svg>
                     </div>
                     ข้อมูลการรักษา
@@ -523,42 +443,43 @@ export default function UserInfo() {
                   <div className="space-y-2">
                     <p style={{ color: themeColors.textSecondary }}><strong>🏥 สิทธิการรักษา:</strong> {patientData.medicalRight || 'ไม่ระบุ'}</p>
                     <p style={{ color: themeColors.textSecondary }}><strong>💊 โรคประจำตัว:</strong> {patientData.chronicDiseases || 'ไม่มี'}</p>
+                    <p style={{ color: themeColors.textSecondary }}><strong>⚠️ แพ้ยา:</strong> {patientData.drugAllergy || 'ไม่มี'}</p>
                   </div>
                 </div>
-              </div>              <div className="card-actions justify-center mt-6 space-x-4">
-                <button 
-                  onClick={() => {
-                    console.log('🖱️ Edit button clicked!')
-                    console.log('📊 Current state:', {
-                      isRegistered,
-                      patientData: patientData ? 'exists' : 'null',
-                      showAuthForm,
-                      authMode
-                    })
-                    handleEdit()
-                  }} 
-                  className="btn btn-lg gap-2 text-white shadow-lg hover:shadow-xl transition-all" 
-                  style={{ 
-                    background: `linear-gradient(135deg, ${themeColors.pink}, ${themeColors.lightBlue})`,
-                    border: 'none'
-                  }}
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                  </svg>
-                  แก้ไขข้อมูล
-                </button>
-                
-                <button onClick={handleLogout} className="btn btn-lg gap-2 btn-outline" style={{ 
-                  borderColor: themeColors.textSecondary,
-                  color: themeColors.textSecondary
-                }}>
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                  </svg>
-                  ออกจากระบบ
-                </button>
-                
+              </div>              <div className="card-actions justify-center mt-6">
+                <div className="flex flex-row gap-4 w-full max-w-md mx-auto">                  <button 
+                    onClick={() => {
+                      console.log('🖱️ Edit button clicked!')
+                      console.log('📊 Current state:', {
+                        isRegistered,
+                        patientData: patientData ? 'exists' : 'null',
+                        showAuthForm,
+                        authMode,
+                      })
+                      handleEdit()
+                    }}
+                    className="btn btn-lg text-white shadow-lg hover:shadow-xl transition-all flex-1 flex-nowrap border-2"
+                    style={{
+                      background: `linear-gradient(135deg, ${themeColors.pink}, ${themeColors.lightBlue})`,
+                      borderColor: themeColors.pink,
+                    }}
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                    <span className="whitespace-nowrap">แก้ไขข้อมูล</span>
+                  </button>
+                  
+                  <button onClick={handleLogout} className="btn btn-lg btn-outline flex-1 flex-nowrap" style={{ 
+                    borderColor: themeColors.textSecondary,
+                    color: themeColors.textSecondary
+                  }}>
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                    </svg>
+                    <span className="whitespace-nowrap">ออกจากระบบ</span>
+                  </button>
+                </div>
               </div>
             </div>
           </div>        ) : (
@@ -588,6 +509,7 @@ export default function UserInfo() {
                         ลงชื่อเข้าใช้
                       </button>
                       
+
                       <button 
                         onClick={() => { setAuthMode('register'); setShowAuthForm(true); }}
                         className="btn btn-lg w-full btn-outline hover:text-white"
@@ -624,29 +546,38 @@ export default function UserInfo() {
 
                     {authMode === 'login' ? (
                       // Login Form
-                      <form onSubmit={handleLogin} className="space-y-4">
-                        <div>
+                      <form onSubmit={handleLogin} className="space-y-4">                        <div>
                           <label className="label">
-                            <span className="label-text font-medium">เบอร์มือถือ</span>
+                            <span className="label-text font-medium text-gray-800">เบอร์มือถือ</span>
                           </label>
                           <input
                             type="tel"
                             value={loginPhone}
-                            onChange={(e) => setLoginPhone(formatPhoneNumber(e.target.value))}
+                            onChange={(e) => {
+                              setLoginPhone(formatPhoneNumber(e.target.value))
+                              if (loginError) setLoginError('')
+                            }}
                             placeholder="xxx-xxx-xxxx"
-                            className="input input-bordered w-full bg-gray-50"
+                            className="input input-bordered w-full bg-gray-50 text-gray-800 font-medium"
                             required
                           />
                         </div>
                         
+                        {loginError && (
+                          <div role="alert" className="alert alert-error text-white">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                            <span>{loginError}</span>
+                          </div>
+                        )}
+
                         <div className="space-y-4 mt-6">
                           <button
                             type="submit"
-                            className={`btn btn-lg w-full text-white ${isLoading ? 'loading' : ''}`}
+                            className={`btn btn-lg w-full text-white`}
                             style={{ background: themeColors.pink, border: 'none' }}
                             disabled={isLoading}
                           >
-                            {isLoading ? 'กำลังเข้าสู่ระบบ...' : 'เข้าสู่ระบบ'}
+                            {isLoading ? <LoadingSpinner /> : 'เข้าสู่ระบบ'}
                           </button>
                           
                           <button
@@ -661,39 +592,37 @@ export default function UserInfo() {
                     ) : (
                       // Register Form
                       <form onSubmit={handleSubmit} className="space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <label className="label">
-                              <span className="label-text font-medium">คำนำหน้า</span>
-                            </label>
-                            <div className="flex items-center gap-2">
-                              <select
-                                name="prefix"
-                                value={formData.prefix}
-                                onChange={handleInputChange}
-                                className={`select select-bordered bg-gray-50 ${formData.prefix === 'อื่นๆ' ? 'w-1/2' : 'w-full'}`}
+                        <div className="grid grid-cols-2 gap-4">                        <div>
+                          <label className="label">
+                            <span className="label-text font-medium text-gray-800">คำนำหน้า</span>
+                          </label>
+                          <div className="flex items-center gap-2">
+                            <select
+                              name="prefix"
+                              value={formData.prefix}
+                              onChange={handleInputChange}
+                              className={`select select-bordered bg-gray-50 text-gray-800 font-medium ${formData.prefix === 'อื่นๆ' ? 'w-1/2' : 'w-full'}`}
+                              required
+                            >
+                              <option value="">เลือก</option>
+                              {prefixOptions.map(prefix => (
+                                <option key={prefix} value={prefix}>{prefix}</option>
+                              ))}
+                            </select>
+                            {formData.prefix === 'อื่นๆ' && (
+                              <input
+                                type="text"
+                                value={customPrefix}
+                                onChange={(e) => setCustomPrefix(e.target.value)}
+                                placeholder="ระบุ"
+                                className="input input-bordered w-1/2 bg-gray-50 text-gray-800 font-medium"
                                 required
-                              >
-                                <option value="">เลือก</option>
-                                {prefixOptions.map(prefix => (
-                                  <option key={prefix} value={prefix}>{prefix}</option>
-                                ))}
-                              </select>
-                              {formData.prefix === 'อื่นๆ' && (
-                                <input
-                                  type="text"
-                                  value={customPrefix}
-                                  onChange={(e) => setCustomPrefix(e.target.value)}
-                                  placeholder="ระบุ"
-                                  className="input input-bordered w-1/2 bg-gray-50"
-                                  required
-                                />
-                              )}
-                            </div>
+                              />
+                            )}
                           </div>
-                          <div>
+                        </div>                          <div>
                             <label className="label">
-                              <span className="label-text font-medium">อายุ</span>
+                              <span className="label-text font-medium text-gray-800">อายุ</span>
                             </label>
                             <input
                               type="number"
@@ -701,18 +630,16 @@ export default function UserInfo() {
                               value={formData.age}
                               onChange={handleInputChange}
                               placeholder="อายุ"
-                              className="input input-bordered w-full bg-gray-50"
+                              className="input input-bordered w-full bg-gray-50 text-gray-800 font-medium"
                               min="0"
                               max="120"
                               required
                             />
                           </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4">
+                        </div>                        <div className="grid grid-cols-2 gap-4">
                           <div>
                             <label className="label">
-                              <span className="label-text font-medium">ชื่อ (ภาษาไทย)</span>
+                              <span className="label-text font-medium text-gray-800">ชื่อ (ภาษาไทย)</span>
                             </label>
                             <input
                               type="text"
@@ -720,7 +647,7 @@ export default function UserInfo() {
                               value={formData.firstName}
                               onChange={handleInputChange}
                               placeholder="ชื่อ"
-                              className="input input-bordered w-full bg-gray-50"
+                              className="input input-bordered w-full bg-gray-50 text-gray-800 font-medium"
                               pattern="[ก-ฮะ-์\s]+"
                               title="กรุณากรอกเป็นภาษาไทยเท่านั้น"
                               required
@@ -728,7 +655,7 @@ export default function UserInfo() {
                           </div>
                           <div>
                             <label className="label">
-                              <span className="label-text font-medium">นามสกุล (ภาษาไทย)</span>
+                              <span className="label-text font-medium text-gray-800">นามสกุล (ภาษาไทย)</span>
                             </label>
                             <input
                               type="text"
@@ -736,17 +663,15 @@ export default function UserInfo() {
                               value={formData.lastName}
                               onChange={handleInputChange}
                               placeholder="นามสกุล"
-                              className="input input-bordered w-full bg-gray-50"
+                              className="input input-bordered w-full bg-gray-50 text-gray-800 font-medium"
                               pattern="[ก-ฮะ-์\s]+"
                               title="กรุณากรอกเป็นภาษาไทยเท่านั้น"
                               required
                             />
                           </div>
-                        </div>
-
-                        <div>
+                        </div>                        <div>
                           <label className="label">
-                            <span className="label-text font-medium">เบอร์โทรศัพท์</span>
+                            <span className="label-text font-medium text-gray-800">เบอร์โทรศัพท์</span>
                           </label>
                           <input
                             type="tel"
@@ -754,21 +679,19 @@ export default function UserInfo() {
                             value={formData.phoneNumber}
                             onChange={handleInputChange}
                             placeholder="xxx-xxx-xxxx"
-                            className="input input-bordered w-full bg-gray-50"
+                            className="input input-bordered w-full bg-gray-50 text-gray-800 font-medium"
                             required
                           />
-                        </div>
-
-                        <div>
+                        </div>                        <div>
                           <label className="label">
-                            <span className="label-text font-medium">สิทธิการรักษา</span>
+                            <span className="label-text font-medium text-gray-800">สิทธิการรักษา</span>
                           </label>
                           <div className="flex items-center gap-2">
                             <select
                               name="medicalRight"
                               value={formData.medicalRight}
                               onChange={handleInputChange}
-                              className={`select select-bordered bg-gray-50 ${formData.medicalRight === 'อื่นๆ' ? 'w-1/2' : 'w-full'}`}
+                              className={`select select-bordered bg-gray-50 text-gray-800 font-medium ${formData.medicalRight === 'อื่นๆ' ? 'w-1/2' : 'w-full'}`}
                             >
                               <option value="">เลือกสิทธิ</option>
                               {medicalRightOptions.map(option => (
@@ -781,36 +704,62 @@ export default function UserInfo() {
                                 value={customMedicalRight}
                                 onChange={(e) => setCustomMedicalRight(e.target.value)}
                                 placeholder="ระบุสิทธิ"
-                                className="input input-bordered w-1/2 bg-gray-50"
+                                className="input input-bordered w-1/2 bg-gray-50 text-gray-800 font-medium"
                               />
                             )}
                           </div>
-                        </div>
-
-                        <div>
+                        </div>                        <div>
                           <label className="label">
-                            <span className="label-text font-medium">โรคประจำตัว (ถ้ามี)</span>
+                            <span className="label-text font-medium text-gray-800">โรคประจำตัว (ถ้ามี)</span>
                           </label>
                           <textarea
                             name="chronicDiseases"
                             value={formData.chronicDiseases}
                             onChange={handleInputChange}
                             placeholder="ระบุโรคประจำตัว (หากมี)"
-                            className="textarea textarea-bordered w-full bg-gray-50"
-                            rows={3}
+                            className="textarea textarea-bordered w-full bg-gray-50 text-gray-800 font-medium"
+                            rows={1}
                           />
                         </div>
 
                         <div>
                           <label className="label">
-                            <span className="label-text font-medium">รูปภาพประจำตัว</span>
+                            <span className="label-text font-medium text-gray-800">แพ้ยา (ถ้ามี)</span>
                           </label>
-                          <input
-                            type="file"
-                            accept="image/*"
-                            onChange={handleImageUpload}
-                            className="file-input file-input-bordered w-full bg-gray-50"
+                          <textarea
+                            name="drugAllergy"
+                            value={formData.drugAllergy}
+                            onChange={handleInputChange}
+                            placeholder="ระบุยาที่แพ้ (หากมี)"
+                            className="textarea textarea-bordered w-full bg-gray-50 text-gray-800 font-medium"
+                            rows={1}
                           />
+                        </div>                        <div>
+                          <label className="label">
+                            <span className="label-text font-medium text-gray-800">รูปภาพประจำตัว</span>
+                          </label>
+                          <div className="relative">
+                            <input
+                              type="file"
+                              accept="image/png, image/jpeg"
+                              onChange={handleImageUpload}
+                              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                              id="file-upload"
+                            />
+                            <div className="flex items-center justify-between w-full p-3 border-2 border-dashed rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors"
+                                 style={{ borderColor: themeColors.pink }}>
+                              <span className="text-gray-600 font-medium">
+                                {rawFile ? rawFile.name : 'ยังไม่ได้เลือกไฟล์'}
+                              </span>
+                              <button
+                                type="button"
+                                className="px-4 py-2 rounded-lg text-white font-medium shadow-sm hover:shadow-md transition-all"
+                                style={{ backgroundColor: themeColors.pink }}
+                              >
+                                เลือกไฟล์
+                              </button>
+                            </div>
+                          </div>
                           {imagePreview && (
                             <div className="mt-2 flex justify-center">
                               <img src={imagePreview} alt="Preview" className="w-20 h-20 rounded-full object-cover border-2" style={{ borderColor: themeColors.pink }} />
@@ -821,11 +770,20 @@ export default function UserInfo() {
                         <div className="space-y-4 mt-6">
                           <button
                             type="submit"
-                            className={`btn btn-lg w-full text-white ${isLoading ? 'loading' : ''}`}
-                            style={{ background: themeColors.pink, border: 'none' }}
+                            className={`btn btn-lg w-full text-white`}
+                            style={{
+                              background: `linear-gradient(135deg, ${themeColors.pink}, ${themeColors.lightBlue})`,
+                              border: 'none',
+                            }}
                             disabled={isLoading}
                           >
-                            {isLoading ? (patientData ? 'กำลังบันทึก...' : 'กำลังลงทะเบียน...') : (patientData ? 'บันทึกการแก้ไข' : 'บันทึกข้อมูล')}
+                            {isLoading ? (
+                              <LoadingSpinner />
+                            ) : isEditing ? (
+                              'บันทึกการแก้ไข'
+                            ) : (
+                              'ลงทะเบียน'
+                            )}
                           </button>
                           
                           <button
@@ -845,6 +803,21 @@ export default function UserInfo() {
           )
         )}
       </div>
+
+      {/* Logout Confirmation Modal */}
+      <dialog open={isLogoutModalOpen} className="modal modal-bottom sm:modal-middle">
+        <div className="modal-box bg-white rounded-2xl shadow-xl">
+          <h3 className="font-bold text-lg text-gray-800">ยืนยันการออกจากระบบ</h3>
+          <p className="py-4 text-gray-600">คุณแน่ใจหรือไม่ว่าต้องการออกจากระบบ?</p>
+          <div className="modal-action mt-4">
+            <button className="btn btn-ghost" onClick={cancelLogout}>ยกเลิก</button>
+            <button className="btn btn-error text-white gap-2" onClick={confirmLogout}>
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+              ออกจากระบบ
+            </button>
+          </div>
+        </div>
+      </dialog>
     </div>
   )
 }

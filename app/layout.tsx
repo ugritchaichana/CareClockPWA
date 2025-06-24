@@ -29,8 +29,8 @@ export const metadata: Metadata = {
     title: 'CareClockPWA',
   },
   icons: {
-    icon: '/icon-192x192.png',
-    apple: '/icon-192x192.png',
+    icon: '/asset/CareClockLOGO.PNG',
+    apple: '/asset/CareClockLOGO.PNG',
   },
 }
 
@@ -51,8 +51,8 @@ export default function RootLayout({
     <html lang="th">
       <head>
         <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
-        <link rel="icon" href="/icon-192x192.png" />
-        <link rel="apple-touch-icon" href="/icon-192x192.png" />
+        <link rel="icon" href="/asset/CareClockLOGO.PNG" />
+        <link rel="apple-touch-icon" href="/asset/CareClockLOGO.PNG" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="CareClockPWA" />
