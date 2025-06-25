@@ -1,7 +1,7 @@
 {
-  "name": "CareClockPWA - แอพแจ้งเตือนกินยา",
+  "name": "CareClock - แอพแจ้งเตือนกินยา",
   "short_name": "CareClock",
-  "description": "แอพพลิเคชันแจ้งเตือนกินยาแบบ PWA - ทำงานได้แม้ offline พร้อมเสียงปลุก",
+  "description": "แอพพลิเคชันแจ้งเตือนกินยา - ทำงานได้แม้ offline พร้อมเสียงปลุก",
   "theme_color": "#FB929E",
   "background_color": "#FFF6F6",
   "display": "standalone",

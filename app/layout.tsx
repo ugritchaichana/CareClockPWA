@@ -12,13 +12,13 @@ const prompt = Prompt({
 })
 
 export const metadata: Metadata = {
-  title: 'CareClockPWA - แอพแจ้งเตือนกินยา',
-  description: 'แอพพลิเคชันแจ้งเตือนกินยาแบบ PWA - ทำงานได้แม้ offline พร้อมเสียงปลุก',
+  title: 'CareClock - แอพแจ้งเตือนกินยา',
+  description: 'แอพพลิเคชันแจ้งเตือนกินยา - ทำงานได้แม้ offline พร้อมเสียงปลุก',
   manifest: '/manifest.json',
   keywords: ['healthcare', 'mobile', 'pwa', 'care', 'clock', 'medicine', 'reminder', 'กินยา', 'แจ้งเตือน'],
-  authors: [{ name: 'CareClockPWA Team' }],
-  creator: 'CareClockPWA',
-  publisher: 'CareClockPWA',
+  authors: [{ name: 'CareClock Team' }],
+  creator: 'CareClock',
+  publisher: 'CareClock',
   formatDetection: {
     email: false,
     address: false,
@@ -27,7 +27,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: 'CareClockPWA',
+    title: 'CareClock',
   },
   icons: {
     icon: '/asset/CareClockLOGO.PNG',
@@ -56,7 +56,7 @@ export default function RootLayout({
         <link rel="apple-touch-icon" href="/asset/CareClockLOGO.PNG" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-        <meta name="apple-mobile-web-app-title" content="CareClockPWA" />
+        <meta name="apple-mobile-web-app-title" content="CareClock" />
         <meta name="mobile-web-app-capable" content="yes" />
       </head>      <body className={`${prompt.className} antialiased`}>
         <ServiceWorkerManager />
