@@ -562,56 +562,66 @@ export default function Notification() {
   }
 
   return (
-    <div className="flex-1 px-4 pb-24 overflow-y-auto">
-      <div className="container mx-auto max-w-2xl py-8">
+    <div className="flex-1 px-3 pb-28 overflow-y-auto min-h-screen" style={{ background: themeColors.bgGradient }}>
+      <div className="container mx-auto max-w-md py-4">
         {showForm ? (
-          // Notification Form View - Full Screen
-          <div>
-            {/* Header */}
-            <div className="text-center mb-8">
-              <h1 className="text-2xl font-bold mb-1" style={{ color: themeColors.textPrimary }}>
-                {editingNotification ? 'แก้ไขการแจ้งเตือน' : 'ตั้งการแจ้งเตือนใหม่'}
-              </h1>
-              <p className="text-gray-500 text-sm">ตั้งเวลาแจ้งเตือนกินยา</p>
+          // Notification Form View - Mobile First Design
+          <div className="space-y-4">
+            {/* Header - Mobile Optimized */}
+            <div className="sticky top-0 z-10 pb-4 mb-2" style={{ background: themeColors.bgGradient }}>
+              <div className="text-center mb-4">
+                <h1 className="text-xl font-bold mb-1" style={{ color: themeColors.textPrimary }}>
+                  {editingNotification ? '✏️ แก้ไขการแจ้งเตือน' : '⏰ ตั้งการแจ้งเตือนใหม่'}
+                </h1>
+                <p className="text-gray-500 text-xs">ตั้งเวลาแจ้งเตือนกินยา</p>
+              </div>
+
+              {/* Back Button - iOS Style */}
+              <div className="mb-2">
+                <button
+                  onClick={() => {
+                    resetForm()
+                    setShowForm(false)
+                    setTimeout(() => {
+                      window.scrollTo({ 
+                        top: 0, 
+                        behavior: 'smooth' 
+                      })
+                    }, 100)
+                  }}
+                  className="flex items-center gap-2 px-4 py-3 rounded-full text-sm font-medium shadow-sm transition-all duration-200 active:scale-95 w-full justify-center"
+                  style={{ 
+                    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+                    color: themeColors.textPrimary,
+                    backdropFilter: 'blur(10px)',
+                    border: `1px solid ${themeColors.lightPink}`
+                  }}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
+                  </svg>
+                  <span>กลับไปหน้าหลัก</span>
+                </button>
+              </div>
             </div>
 
-            {/* Back Button */}
-            <div className="mb-6">
-              <button
-                onClick={() => {
-                  resetForm()
-                  setShowForm(false)
-                  // Scroll to top when going back to list
-                  setTimeout(() => {
-                    window.scrollTo({ 
-                      top: 0, 
-                      behavior: 'smooth' 
-                    })
-                  }, 100)
-                }}
-                className="btn btn-ghost"
-                style={{ color: themeColors.textPrimary }}
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
-                </svg>
-                กลับ
-              </button>
-            </div>
-
-            <div className="card bg-white/90 shadow-xl rounded-3xl border-2" style={{ borderColor: themeColors.lightPink }}>
-              <div className="card-body p-6">
+            {/* Form Card - Mobile Optimized */}
+            <div className="card bg-white/95 shadow-lg rounded-3xl border-2 backdrop-blur-sm" style={{ borderColor: themeColors.lightPink }}>
+              <div className="card-body p-4 sm:p-6">
                 <form onSubmit={handleSubmit} className="space-y-4">
-                  {/* Medicine Selection */}
+                  {/* Medicine Selection - Mobile Friendly */}
                   <div>
                     <label className="label">
-                      <span className="label-text font-medium text-gray-800">เลือกยา</span>
+                      <span className="label-text font-medium text-gray-800 text-sm">📋 เลือกยา</span>
                     </label>
                     <select 
                       value={selectedMedicine} 
                       onChange={(e) => setSelectedMedicine(e.target.value)}
-                      className="select select-bordered bg-gray-50 text-gray-800 font-medium w-full"
-                      style={{ borderColor: themeColors.pink }}
+                      className="select select-bordered bg-gray-50 text-gray-800 font-medium w-full text-base"
+                      style={{ 
+                        borderColor: themeColors.pink,
+                        minHeight: '48px' // Touch-friendly height
+                      }}
                       required
                     >
                       <option disabled value="">เลือกยา</option>
@@ -623,51 +633,59 @@ export default function Notification() {
                     </select>
                   </div>
 
-                  {/* Title */}
+                  {/* Title - Mobile Friendly */}
                   <div>
                     <label className="label">
-                      <span className="label-text font-medium text-gray-800">หัวข้อการแจ้งเตือน</span>
+                      <span className="label-text font-medium text-gray-800 text-sm">📝 หัวข้อการแจ้งเตือน</span>
                     </label>
                     <input 
                       type="text" 
                       value={title}
                       onChange={(e) => setTitle(e.target.value)}
                       placeholder="เช่น กินยาความดันโลหิตสูง"
-                      className="input input-bordered bg-gray-50 text-gray-800 font-medium w-full"
-                      style={{ borderColor: themeColors.pink }}
+                      className="input input-bordered bg-gray-50 text-gray-800 font-medium w-full text-base"
+                      style={{ 
+                        borderColor: themeColors.pink,
+                        minHeight: '48px' // Touch-friendly height
+                      }}
                       required
                     />
                   </div>
 
-                  {/* Dynamic Time Inputs based on selected medicine */}
+                  {/* Dynamic Time Inputs - Mobile Optimized */}
                   {selectedMedicine && medicines.find(med => med.id === parseInt(selectedMedicine)) && (
                     <div>
                       <label className="label">
-                        <span className="label-text font-medium text-gray-800">เวลาแจ้งเตือน</span>
+                        <span className="label-text font-medium text-gray-800 text-sm">⏰ เวลาแจ้งเตือน</span>
                       </label>
-                      <div className="space-y-4">
+                      <div className="space-y-3">
                         {Object.entries(medicines.find(med => med.id === parseInt(selectedMedicine))!.consumptionTimes)
                           .filter(([_, isSelected]) => isSelected)
                           .map(([timeType, _]) => (
-                            <div key={timeType} className="flex items-center gap-4">
-                              <div className="w-24">
-                                <span className="text-sm font-medium px-3 py-2 rounded-full inline-block text-center" 
-                                      style={{ backgroundColor: themeColors.lightPink, color: themeColors.textPrimary }}>
-                                  {getTimeTypeLabel(timeType)}
-                                </span>
-                              </div>
-                              <div className="flex-1">
-                                <input 
-                                  type="time" 
-                                  value={scheduledTimes[timeType as keyof typeof scheduledTimes] || ''}
-                                  onChange={(e) => setScheduledTimes(prev => ({
-                                    ...prev,
-                                    [timeType]: e.target.value
-                                  }))}
-                                  className="input input-bordered bg-gray-50 text-gray-800 font-medium w-full"
-                                  style={{ borderColor: themeColors.pink }}
-                                  required
-                                />
+                            <div key={timeType} className="bg-gray-50 p-3 rounded-2xl border" style={{ borderColor: themeColors.lightPink }}>
+                              <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                                <div className="w-full sm:w-auto">
+                                  <span className="text-sm font-medium px-3 py-2 rounded-full inline-block text-center w-full sm:w-auto" 
+                                        style={{ backgroundColor: themeColors.lightPink, color: themeColors.textPrimary }}>
+                                    {getTimeTypeLabel(timeType)}
+                                  </span>
+                                </div>
+                                <div className="flex-1">
+                                  <input 
+                                    type="time" 
+                                    value={scheduledTimes[timeType as keyof typeof scheduledTimes] || ''}
+                                    onChange={(e) => setScheduledTimes(prev => ({
+                                      ...prev,
+                                      [timeType]: e.target.value
+                                    }))}
+                                    className="input input-bordered bg-white text-gray-800 font-medium w-full text-base"
+                                    style={{ 
+                                      borderColor: themeColors.pink,
+                                      minHeight: '48px' // Touch-friendly height
+                                    }}
+                                    required
+                                  />
+                                </div>
                               </div>
                             </div>
                           ))}
@@ -675,32 +693,36 @@ export default function Notification() {
                     </div>
                   )}
 
-                  {/* Message */}
+                  {/* Message - Mobile Friendly */}
                   <div>
                     <label className="label">
-                      <span className="label-text font-medium text-gray-800">ข้อความ (ไม่บังคับ)</span>
+                      <span className="label-text font-medium text-gray-800 text-sm">💬 ข้อความ (ไม่บังคับ)</span>
                     </label>
                     <textarea 
                       value={message}
                       onChange={(e) => setMessage(e.target.value)}
                       placeholder="ข้อความเพิ่มเติม..."
-                      className="textarea textarea-bordered bg-gray-50 text-gray-800 font-medium w-full"
-                      style={{ borderColor: themeColors.pink }}
+                      className="textarea textarea-bordered bg-gray-50 text-gray-800 font-medium w-full text-base"
+                      style={{ 
+                        borderColor: themeColors.pink,
+                        minHeight: '96px' // Touch-friendly height
+                      }}
                       rows={3}
                     />
                   </div>
 
-                  {/* Form Actions */}
-                  <div className="space-y-4 mt-6">
+                  {/* Form Actions - Mobile Optimized */}
+                  <div className="space-y-3 mt-6 pt-4 border-t border-gray-200">
                     <LoadingButton
                       type="submit"
                       size="lg"
-                      className="w-full"
+                      className="w-full py-4 rounded-2xl text-white font-semibold text-base shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98]"
                       style={{ 
                         background: isLoading 
                           ? 'linear-gradient(135deg, #9ca3af, #6b7280)' 
                           : `linear-gradient(135deg, ${themeColors.pink}, ${themeColors.lightBlue})`,
-                        border: 'none'
+                        border: 'none',
+                        minHeight: '56px' // Extra touch-friendly height
                       }}
                       isLoading={isLoading}
                       loadingText="กำลังบันทึก..."
@@ -710,22 +732,38 @@ export default function Notification() {
                         </svg>
                       }
                     >
-                      {editingNotification ? 'บันทึกการแก้ไข' : 'สร้างการแจ้งเตือน'}
+                      {editingNotification ? (
+                        <span className="flex items-center justify-center gap-2">
+                          <span>💾</span>
+                          <span>บันทึกการแก้ไข</span>
+                        </span>
+                      ) : (
+                        <span className="flex items-center justify-center gap-2">
+                          <span>⏰</span>
+                          <span>ตั้งการแจ้งเตือน</span>
+                        </span>
+                      )}
                     </LoadingButton>
                     
+                    {/* Cancel Button - Mobile Friendly */}
                     <button 
                       type="button"
                       onClick={() => {
                         resetForm()
                         setShowForm(false)
                       }}
-                      className="btn btn-lg btn-outline w-full"
+                      className="w-full py-3 rounded-2xl font-semibold text-base border-2 transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98]"
                       style={{ 
                         borderColor: themeColors.textSecondary,
-                        color: themeColors.textSecondary
+                        color: themeColors.textSecondary,
+                        backgroundColor: 'transparent',
+                        minHeight: '48px'
                       }}
                     >
-                      ยกเลิก
+                      <span className="flex items-center justify-center gap-2">
+                        <span>❌</span>
+                        <span>ยกเลิก</span>
+                      </span>
                     </button>
                   </div>
                 </form>
@@ -733,21 +771,20 @@ export default function Notification() {
             </div>
           </div>
         ) : (
-          // Notification List View
-          <div className="space-y-6">
-            {/* Header */}
-            <div className="text-center mb-8">
-              <h1 className="text-2xl font-bold mb-1" style={{ color: themeColors.textPrimary }}>การแจ้งเตือน</h1>
-              <p className="text-gray-500 text-sm">แจ้งเตือนการกินยาและนัดหมาย</p>
+          // Notification List View - Mobile Optimized
+          <div className="space-y-4">
+            {/* Header - Mobile Style */}
+            <div className="text-center mb-6">
+              <h1 className="text-xl font-bold mb-1" style={{ color: themeColors.textPrimary }}>🔔 การแจ้งเตือน</h1>
+              <p className="text-gray-500 text-xs">แจ้งเตือนการกินยาและนัดหมาย</p>
             </div>
 
-            {/* Add Notification Button */}
-            <div className="flex justify-center">
+            {/* Add Notification Button - Mobile Optimized */}
+            <div className="flex justify-center mb-6">
               <button
                 onClick={() => {
                   resetForm()
                   setShowForm(true)
-                  // Scroll to top when opening form
                   setTimeout(() => {
                     window.scrollTo({ 
                       top: 0, 
@@ -755,57 +792,63 @@ export default function Notification() {
                     })
                   }, 100)
                 }}
-                className="btn btn-lg text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 active:scale-95"
+                className="px-6 py-4 rounded-2xl text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 active:scale-95 font-semibold text-base"
                 style={{
                   background: `linear-gradient(135deg, ${themeColors.pink}, ${themeColors.lightBlue})`,
                   border: 'none',
+                  minHeight: '56px' // Touch-friendly height
                 }}
               >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
-                </svg>
-                <span className="hover:animate-bounce">ตั้งแจ้งเตือน</span>
+                <span className="flex items-center gap-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
+                  </svg>
+                  <span>⏰ ตั้งแจ้งเตือนใหม่</span>
+                </span>
               </button>
             </div>
 
-            {/* Notification Cards */}
-            <div className="space-y-4">
+            {/* Notification Cards - Mobile First */}
+            <div className="space-y-3">
               {isLoadingNotifications ? (
-                <div className="text-center py-12">
+                <div className="text-center py-8">
                   <LoadingSpinner size="lg" color="primary" />
-                  <p className="text-gray-700 mt-4 font-medium">กำลังโหลดการแจ้งเตือน...</p>
+                  <p className="text-gray-700 mt-3 font-medium text-sm">กำลังโหลดการแจ้งเตือน...</p>
                 </div>
               ) : notifications.length === 0 ? (
                 <div className="text-center py-12">
-                  <div className="text-gray-400 text-6xl mb-4">🔔</div>
-                  <p className="text-gray-500">ยังไม่มีการแจ้งเตือน</p>
-                  <p className="text-gray-400 text-sm">กดปุ่ม "ตั้งแจ้งเตือน" เพื่อเพิ่มการแจ้งเตือนใหม่</p>
+                  <div className="text-gray-400 text-5xl mb-3">🔔</div>
+                  <p className="text-gray-500 text-sm">ยังไม่มีการแจ้งเตือน</p>
+                  <p className="text-gray-400 text-xs mt-1">กดปุ่ม "ตั้งแจ้งเตือนใหม่" เพื่อเพิ่มการแจ้งเตือน</p>
                 </div>
               ) : (
                 groupNotifications(notifications).map((group) => (
-                  <div key={group.groupId} className="card bg-white/90 shadow-xl rounded-3xl border-2" style={{ borderColor: themeColors.lightPink }}>
-                    <div className="card-body p-6">
-                      <div className="flex justify-between items-start mb-3">
+                  <div key={group.groupId} className="card bg-white/95 shadow-lg rounded-3xl border-2 backdrop-blur-sm" style={{ borderColor: themeColors.lightPink }}>
+                    <div className="card-body p-4 sm:p-5">
+                      {/* Group Header - Mobile Optimized */}
+                      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3 mb-3">
                         <div className="flex-1">
-                          <h3 className="text-lg font-bold mb-1" style={{ color: themeColors.textPrimary }}>
+                          <h3 className="text-lg font-bold mb-1 leading-tight" style={{ color: themeColors.textPrimary }}>
                             {group.title}
                           </h3>
                           {group.message && (
                             <p className="text-sm text-gray-600 mb-2">{group.message}</p>
                           )}
                         </div>
-                        <div className="flex gap-2 ml-3">
+                        {/* Action Buttons - Mobile Stack */}
+                        <div className="flex gap-2 w-full sm:w-auto sm:ml-3">
                           <button 
                             onClick={() => handleToggleNotificationGroup(group.groupId, group.isActive)}
-                            title={`${group.isActive ? 'ปิด' : 'เปิด'}การแจ้งเตือนทั้งกลุ่ม (ปัจจุบัน${group.isActive ? 'เปิดอยู่' : 'ปิดอยู่'})`}
-                            className="px-3 py-2 rounded-full text-xs font-medium text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
+                            title={`${group.isActive ? 'ปิด' : 'เปิด'}การแจ้งเตือนทั้งกลุ่ม`}
+                            className="flex-1 sm:flex-none px-3 py-2 rounded-2xl text-xs font-medium text-white shadow-md hover:shadow-lg transition-all duration-300 transform active:scale-95"
                             style={{
                               background: group.isActive 
                                 ? `linear-gradient(135deg, ${themeColors.pink}, ${themeColors.lightBlue})` 
-                                : 'linear-gradient(135deg, #9ca3af, #6b7280)'
+                                : 'linear-gradient(135deg, #9ca3af, #6b7280)',
+                              minHeight: '44px' // Touch-friendly
                             }}
                           >
-                            <span className="flex items-center gap-1.5">
+                            <span className="flex items-center justify-center gap-1.5">
                               <span className="text-sm">
                                 {group.isActive ? '🔔' : '🔕'}
                               </span>
@@ -814,13 +857,14 @@ export default function Notification() {
                           </button>
                           <button 
                             onClick={() => setShowDeleteConfirm(group.groupId)}
-                            className="px-3 py-2 rounded-full text-xs font-medium text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
+                            className="flex-1 sm:flex-none px-3 py-2 rounded-2xl text-xs font-medium text-white shadow-md hover:shadow-lg transition-all duration-300 transform active:scale-95"
                             style={{
-                              background: 'linear-gradient(135deg, #f87171, #ef4444)'
+                              background: 'linear-gradient(135deg, #f87171, #ef4444)',
+                              minHeight: '44px' // Touch-friendly
                             }}
                             title="ลบการแจ้งเตือนทั้งกลุ่ม"
                           >
-                            <span className="flex items-center gap-1.5">
+                            <span className="flex items-center justify-center gap-1.5">
                               <span className="text-sm">🗑️</span>
                               <span>ลบ</span>
                             </span>
@@ -828,9 +872,9 @@ export default function Notification() {
                         </div>
                       </div>
                       
-                      {/* Time Schedule Display */}
+                      {/* Time Schedule Display - Mobile Optimized */}
                       <div className="mb-3">
-                        <div className="flex flex-wrap gap-2">
+                        <div className="flex flex-wrap gap-1.5">
                           {group.notifications
                             .sort((a, b) => {
                               const order = { morning: 1, afternoon: 2, evening: 3, beforeBed: 4 }
@@ -839,32 +883,32 @@ export default function Notification() {
                             .map((notification) => (
                               <span 
                                 key={notification.id}
-                                className="text-sm px-3 py-1 rounded-full" 
+                                className="text-xs px-2.5 py-1.5 rounded-full font-medium" 
                                 style={{ backgroundColor: themeColors.lightBlue, color: themeColors.textPrimary }}
                               >
-                                {getTimeTypeLabel(notification.timeType)} | {formatTimeToHHMM(notification.scheduledTime)}
+                                {getTimeTypeLabel(notification.timeType)} {formatTimeToHHMM(notification.scheduledTime)}
                               </span>
                             ))}
                         </div>
                       </div>
                       
-                      {/* Medicine Information */}
-                      <div className="p-3 rounded-lg mb-3" style={{ backgroundColor: themeColors.white }}>
-                        <p className="text-sm font-medium" style={{ color: themeColors.textPrimary }}>
+                      {/* Medicine Information - Mobile Card Style */}
+                      <div className="p-3 rounded-2xl mb-3" style={{ backgroundColor: themeColors.white }}>
+                        <p className="text-sm font-medium mb-1" style={{ color: themeColors.textPrimary }}>
                           💊 {group.medicine.medicineName}
                         </p>
-                        <p className="text-sm" style={{ color: themeColors.textSecondary }}>
+                        <p className="text-xs mb-2" style={{ color: themeColors.textSecondary }}>
                           ขนาด: {group.medicine.dosage} เม็ด/ครั้ง
                         </p>
-                        <div className="flex items-center gap-2">
-                          <p className={`text-sm font-medium ${
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                          <p className={`text-xs font-medium ${
                             group.medicine.currentStock > 10 
                               ? 'text-green-600' 
                               : group.medicine.currentStock > 5 
                               ? 'text-yellow-600' 
                               : 'text-red-600'
                           }`}>
-                            คงเหลือ: {group.medicine.currentStock} เม็ด
+                            📦 คงเหลือ: {group.medicine.currentStock} เม็ด
                           </p>
                           {group.medicine.currentStock <= 5 && group.medicine.currentStock > 0 && (
                             <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full">⚠️ ยาเหลือน้อย</span>
@@ -875,9 +919,9 @@ export default function Notification() {
                         </div>
                       </div>
                       
-                      {/* Status indicators for each time slot */}
+                      {/* Status indicators - Mobile Friendly */}
                       <div className="mb-3">
-                        <div className="flex flex-wrap gap-2">
+                        <div className="flex flex-wrap gap-1.5">
                           {group.notifications.map((notification) => {
                             const isTakenToday = takenToday.has(notification.id)
                             return isTakenToday ? (
@@ -889,39 +933,57 @@ export default function Notification() {
                         </div>
                       </div>
 
-                      {/* Action Buttons for each notification */}
+                      {/* Action Buttons - Mobile Optimized */}
                       <div className="space-y-2">
                         {group.notifications.map((notification) => {
                           const isTakenToday = takenToday.has(notification.id)
                           return (
-                            <div key={notification.id} className="flex items-center gap-2">
-                              <span className="text-sm font-medium w-20" style={{ color: themeColors.textPrimary }}>
-                                {getTimeTypeLabel(notification.timeType)}:
+                            <div key={notification.id} className="flex items-center gap-2 p-2 rounded-xl bg-gray-50">
+                              <span className="text-xs font-medium w-16 text-center" style={{ color: themeColors.textPrimary }}>
+                                {getTimeTypeLabel(notification.timeType)}
                               </span>
                               <div className="flex gap-2 flex-1">
                                 {isTakenToday ? (
                                   <button
                                     onClick={() => recordMedicineConsumption(notification.id, notification.medicineId, 'cancel')}
-                                    className="flex-1 px-3 py-1 rounded-lg text-xs font-medium text-white shadow-md hover:shadow-lg transition-all"
-                                    style={{ background: 'linear-gradient(135deg, #6b7280, #4b5563)' }}
+                                    className="flex-1 px-3 py-2 rounded-xl text-xs font-medium text-white shadow-md transition-all duration-200 active:scale-95"
+                                    style={{ 
+                                      background: 'linear-gradient(135deg, #6b7280, #4b5563)',
+                                      minHeight: '40px' // Touch-friendly
+                                    }}
                                   >
-                                    ↶ ยกเลิก
+                                    <span className="flex items-center justify-center gap-1">
+                                      <span>↶</span>
+                                      <span>ยกเลิก</span>
+                                    </span>
                                   </button>
                                 ) : (
                                   <>
                                     <button
                                       onClick={() => recordMedicineConsumption(notification.id, notification.medicineId, 'taken')}
-                                      className="flex-1 px-3 py-1 rounded-lg text-xs font-medium text-white shadow-md hover:shadow-lg transition-all"
-                                      style={{ background: 'linear-gradient(135deg, #22c55e, #16a34a)' }}
+                                      className="flex-1 px-3 py-2 rounded-xl text-xs font-medium text-white shadow-md transition-all duration-200 active:scale-95"
+                                      style={{ 
+                                        background: 'linear-gradient(135deg, #22c55e, #16a34a)',
+                                        minHeight: '40px' // Touch-friendly
+                                      }}
                                     >
-                                      ✓ กิน
+                                      <span className="flex items-center justify-center gap-1">
+                                        <span>✓</span>
+                                        <span>กิน</span>
+                                      </span>
                                     </button>
                                     <button
                                       onClick={() => recordMedicineConsumption(notification.id, notification.medicineId, 'skipped')}
-                                      className="flex-1 px-3 py-1 rounded-lg text-xs font-medium text-white shadow-md hover:shadow-lg transition-all"
-                                      style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706)' }}
+                                      className="flex-1 px-3 py-2 rounded-xl text-xs font-medium text-white shadow-md transition-all duration-200 active:scale-95"
+                                      style={{ 
+                                        background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+                                        minHeight: '40px' // Touch-friendly
+                                      }}
                                     >
-                                      ⏭ ข้าม
+                                      <span className="flex items-center justify-center gap-1">
+                                        <span>⏭</span>
+                                        <span>ข้าม</span>
+                                      </span>
                                     </button>
                                   </>
                                 )}
@@ -938,25 +1000,25 @@ export default function Notification() {
           </div>
         )}
         
-        {/* Delete Confirmation Modal */}
+        {/* Delete Confirmation Modal - Mobile Optimized */}
         {showDeleteConfirm && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-3xl p-6 max-w-md w-full mx-auto shadow-2xl border-2" style={{ borderColor: themeColors.lightPink }}>
+            <div className="bg-white rounded-3xl p-6 max-w-sm w-full mx-auto shadow-2xl border-2" style={{ borderColor: themeColors.lightPink }}>
               <div className="text-center">
-                <div className="text-5xl mb-4">🗑️</div>
-                <h3 className="text-xl font-bold mb-2" style={{ color: themeColors.textPrimary }}>
-                  ยืนยันการลบการแจ้งเตือนกลุ่ม
+                <div className="text-4xl mb-4">🗑️</div>
+                <h3 className="text-lg font-bold mb-2" style={{ color: themeColors.textPrimary }}>
+                  ยืนยันการลบ
                 </h3>
-                <p className="text-gray-600 mb-6">
-                  คุณแน่ใจหรือไม่ที่จะลบการแจ้งเตือนทั้งกลุ่มนี้? การดำเนินการนี้จะลบการแจ้งเตือนทุกช่วงเวลาในกลุ่มและไม่สามารถยกเลิกได้
+                <p className="text-gray-600 mb-4 text-sm leading-relaxed">
+                  คุณแน่ใจหรือไม่ที่จะลบการแจ้งเตือนทั้งกลุ่มนี้? การดำเนินการนี้ไม่สามารถยกเลิกได้
                 </p>
                 
                 {/* Show notification group details */}
                 {(() => {
                   const groupToDelete = groupNotifications(notifications).find(g => g.groupId === showDeleteConfirm)
                   return groupToDelete ? (
-                    <div className="mb-6 p-4 rounded-lg text-left" style={{ backgroundColor: themeColors.white }}>
-                      <p className="font-medium text-sm mb-2" style={{ color: themeColors.textPrimary }}>
+                    <div className="mb-4 p-3 rounded-2xl text-left bg-gray-50">
+                      <p className="font-medium text-sm mb-1" style={{ color: themeColors.textPrimary }}>
                         📋 {groupToDelete.title}
                       </p>
                       <p className="text-xs text-gray-600 mb-2">
@@ -964,8 +1026,8 @@ export default function Notification() {
                       </p>
                       <div className="text-xs text-gray-600">
                         <p className="font-medium mb-1">ช่วงเวลาที่จะถูกลบ:</p>
-                        {groupToDelete.notifications.map((notif, idx) => (
-                          <p key={notif.id}>
+                        {groupToDelete.notifications.map((notif) => (
+                          <p key={notif.id} className="text-xs">
                             • ⏰ {formatTimeToHHMM(notif.scheduledTime)} ({formatTimeType(notif.timeType)})
                           </p>
                         ))}
@@ -974,29 +1036,32 @@ export default function Notification() {
                   ) : null
                 })()}
                 
-                <div className="flex gap-3">
+                {/* Action Buttons - Mobile Stack */}
+                <div className="flex flex-col gap-3">
+                  <button 
+                    onClick={() => handleDeleteNotificationGroup(showDeleteConfirm)}
+                    className="w-full py-3 rounded-2xl text-white font-semibold text-sm transition-all duration-200 active:scale-95"
+                    style={{ 
+                      background: 'linear-gradient(135deg, #f87171, #ef4444)',
+                      minHeight: '48px'
+                    }}
+                  >
+                    <span className="flex items-center justify-center gap-2">
+                      <span>🗑️</span>
+                      <span>ลบทั้งกลุ่ม</span>
+                    </span>
+                  </button>
                   <button 
                     onClick={() => setShowDeleteConfirm(null)}
-                    className="flex-1 btn btn-outline"
+                    className="w-full py-3 rounded-2xl font-semibold text-sm border-2 transition-all duration-200 active:scale-95"
                     style={{ 
                       borderColor: themeColors.textSecondary,
-                      color: themeColors.textSecondary
+                      color: themeColors.textSecondary,
+                      backgroundColor: 'transparent',
+                      minHeight: '48px'
                     }}
                   >
                     ยกเลิก
-                  </button>
-                  <button 
-                    onClick={() => handleDeleteNotificationGroup(showDeleteConfirm)}
-                    className="flex-1 btn text-white"
-                    style={{ 
-                      background: 'linear-gradient(135deg, #f87171, #ef4444)',
-                      border: 'none'
-                    }}
-                  >
-                    <span className="flex items-center gap-2">
-                      <span className="text-lg">🗑️</span>
-                      <span>ลบทั้งกลุ่ม</span>
-                    </span>
                   </button>
                 </div>
               </div>
@@ -1004,9 +1069,9 @@ export default function Notification() {
           </div>
         )}
         
-        {/* Toast Notification */}
+        {/* Toast Notification - Mobile Optimized */}
         {toast.show && (
-          <div className="fixed top-4 right-4 z-50 animate-bounce">
+          <div className="fixed top-4 left-4 right-4 z-50 animate-bounce">
             <div className={`alert shadow-xl rounded-2xl border-2 ${
               toast.type === 'success' 
                 ? 'bg-gradient-to-r from-green-400 to-green-500 text-white border-green-300' 
@@ -1014,16 +1079,16 @@ export default function Notification() {
                 ? 'bg-gradient-to-r from-red-400 to-red-500 text-white border-red-300'
                 : 'bg-gradient-to-r from-blue-400 to-blue-500 text-white border-blue-300'
             }`}>
-              <div className="flex items-center gap-3">
-                <div className="text-2xl">
+              <div className="flex items-center gap-3 w-full">
+                <div className="text-xl">
                   {toast.type === 'success' ? '✅' : toast.type === 'error' ? '❌' : 'ℹ️'}
                 </div>
                 <div className="flex-1">
-                  <p className="font-medium text-sm">{toast.message}</p>
+                  <p className="font-medium text-sm leading-tight">{toast.message}</p>
                 </div>
                 <button 
                   onClick={() => setToast(prev => ({ ...prev, show: false }))}
-                  className="btn btn-ghost btn-sm text-white hover:bg-white/20"
+                  className="btn btn-ghost btn-sm text-white hover:bg-white/20 min-h-0 h-8 w-8 p-0 rounded-full"
                 >
                   ✕
                 </button>

@@ -1,11 +1,12 @@
-// Service Worker for PWA functionality
-const CACHE_NAME = 'care-clock-pwa-v1';
+// Service Worker for CareClock PWA with iOS notification support
+const CACHE_NAME = 'care-clock-v1';
 const urlsToCache = [
   '/',
   '/static/js/bundle.js',
   '/static/css/main.css',
   '/manifest.json',
-  '/asset/CareClockLOGO.PNG'
+  '/asset/CareClockLOGO.PNG',
+  '/offline.html'
 ];
 
 // Install event
@@ -21,16 +22,27 @@ self.addEventListener('install', (event) => {
   self.skipWaiting();
 });
 
-// Fetch event
+// Fetch event with offline support
 self.addEventListener('fetch', (event) => {
-  event.respondWith(
-    caches.match(event.request)
-      .then((response) => {
-        // Return cached version or fetch from network
-        return response || fetch(event.request);
-      }
-    )
-  );
+  if (event.request.destination === 'document') {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          return response;
+        })
+        .catch(() => {
+          return caches.match('/offline.html');
+        })
+    );
+  } else {
+    event.respondWith(
+      caches.match(event.request)
+        .then((response) => {
+          // Return cached version or fetch from network
+          return response || fetch(event.request);
+        })
+    );
+  }
 });
 
 // Activate event
@@ -51,29 +63,44 @@ self.addEventListener('activate', (event) => {
   return self.clients.claim();
 });
 
-// Push event for notifications
+// Enhanced push event for notifications with iOS support
 self.addEventListener('push', (event) => {
   console.log('Push event received:', event);
   
+  let notificationData = {};
+  if (event.data) {
+    try {
+      notificationData = event.data.json();
+    } catch (e) {
+      notificationData = { title: 'CareClock', body: event.data.text() };
+    }
+  }
+  
   const options = {
-    body: event.data ? event.data.text() : 'เวลากินยาแล้ว!',
+    body: notificationData.body || 'เวลากินยาแล้ว!',
     icon: '/asset/CareClockLOGO.PNG',
     badge: '/asset/CareClockLOGO.PNG',
-    vibrate: [200, 100, 200],
-    tag: 'medicine-reminder',
+    vibrate: [200, 100, 200, 100, 200], // iOS-compatible vibration pattern
+    tag: notificationData.tag || 'medicine-reminder',
     requireInteraction: true,
+    silent: false, // Ensure sound is enabled for iOS
+    timestamp: Date.now(),
+    data: notificationData, // Pass through additional data
     actions: [
       {
         action: 'taken',
-        title: '✅ กินแล้ว'
+        title: '✅ กินแล้ว',
+        icon: '/asset/CareClockLOGO.PNG'
       },
       {
         action: 'skip',
-        title: '⏭️ ข้าม'
+        title: '⏭️ ข้าม',
+        icon: '/asset/CareClockLOGO.PNG'
       },
       {
         action: 'snooze',
-        title: '⏰ เลื่อน 5 นาที'
+        title: '⏰ เลื่อน 5 นาที',
+        icon: '/asset/CareClockLOGO.PNG'
       }
     ]
   };

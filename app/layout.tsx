@@ -13,9 +13,9 @@ const prompt = Prompt({
 
 export const metadata: Metadata = {
   title: 'CareClock - แอพแจ้งเตือนกินยา',
-  description: 'แอพพลิเคชันแจ้งเตือนกินยา - ทำงานได้แม้ offline พร้อมเสียงปลุก',
+  description: 'แอพพลิเคชันแจ้งเตือนกินยา - ทำงานได้แม้ offline พร้อมเสียงปลุกและการสั่น รองรับ iOS',
   manifest: '/manifest.json',
-  keywords: ['healthcare', 'mobile', 'care', 'clock', 'medicine', 'reminder', 'กินยา', 'แจ้งเตือน'],
+  keywords: ['healthcare', 'mobile', 'care', 'clock', 'medicine', 'reminder', 'กินยา', 'แจ้งเตือน', 'ios', 'iphone', 'ipad'],
   authors: [{ name: 'CareClock Team' }],
   creator: 'CareClock',
   publisher: 'CareClock',
@@ -28,6 +28,30 @@ export const metadata: Metadata = {
     capable: true,
     statusBarStyle: 'default',
     title: 'CareClock',
+    startupImage: [
+      {
+        url: '/asset/CareClockLOGO.PNG',
+        media: '(device-width: 320px) and (device-height: 568px) and (-webkit-device-pixel-ratio: 2)',
+      },
+      {
+        url: '/asset/CareClockLOGO.PNG',
+        media: '(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2)',
+      },
+      {
+        url: '/asset/CareClockLOGO.PNG',
+        media: '(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2)',
+      },
+    ],
+  },
+  other: {
+    'mobile-web-app-capable': 'yes',
+    'apple-mobile-web-app-capable': 'yes',
+    'apple-mobile-web-app-status-bar-style': 'default',
+    'apple-mobile-web-app-title': 'CareClock',
+    'application-name': 'CareClock',
+    'msapplication-TileColor': '#FB929E',
+    'msapplication-config': '/browserconfig.xml',
+    'theme-color': '#FB929E',
   },
   icons: {
     icon: '/asset/CareClockLOGO.PNG',

@@ -1,4 +1,4 @@
-// Notification Manager for PWA Medicine Reminders
+// Notification Manager for PWA Medicine Reminders with iOS Support
 export interface ScheduledNotification {
   id: string;
   medicineId: number;
@@ -19,13 +19,18 @@ export class NotificationManager {
   private checkInterval: NodeJS.Timeout | null = null;
   private audioContext: AudioContext | null = null;
   private alarmSound: HTMLAudioElement | null = null;
+  private isIOS: boolean = false;
+  private wakeLock: any = null;
+  private soundPlaying: boolean = false;
 
   private constructor() {
+    this.detectPlatform();
     this.initializeAudio();
     this.requestNotificationPermission();
     this.loadNotificationsFromStorage();
     this.startNotificationChecker();
     this.registerServiceWorkerListener();
+    this.requestWakeLock();
   }
 
   public static getInstance(): NotificationManager {
@@ -35,49 +40,142 @@ export class NotificationManager {
     return NotificationManager.instance;
   }
 
-  // Initialize audio for alarm sounds
+  // Detect if running on iOS
+  private detectPlatform() {
+    this.isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || 
+                 (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  }
+
+  // Request wake lock to keep app active in background
+  private async requestWakeLock() {
+    try {
+      if ('wakeLock' in navigator) {
+        this.wakeLock = await (navigator as any).wakeLock.request('screen');
+        console.log('Wake lock acquired');
+      }
+    } catch (error) {
+      console.log('Wake lock not supported or failed:', error);
+    }
+  }
+
+  // Initialize audio for alarm sounds with iOS compatibility
   private initializeAudio() {
     try {
-      // Create audio context for alarm sounds
-      this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      // Create audio context for alarm sounds (iOS requires user interaction)
+      const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+      if (AudioContext) {
+        this.audioContext = new AudioContext();
+      }
       
-      // Create alarm sound element
+      // Create alarm sound element for iOS compatibility
       this.alarmSound = new Audio();
-      this.alarmSound.loop = true;
-      this.alarmSound.volume = 0.8;
+      this.alarmSound.loop = false; // iOS doesn't support looping well
+      this.alarmSound.volume = 1.0; // Max volume for iOS
+      this.alarmSound.preload = 'auto';
       
-      // You can add a custom alarm sound file, or use a generated tone
-      this.generateAlarmTone();
+      // For iOS, we need to use a real sound file or data URL
+      this.createIOSCompatibleAlarm();
     } catch (error) {
       console.error('Failed to initialize audio:', error);
     }
   }
 
-  // Generate a simple alarm tone
-  private generateAlarmTone() {
+  // Create iOS-compatible alarm sound
+  private createIOSCompatibleAlarm() {
+    try {
+      // Create a data URL with a simple beep sound for iOS compatibility
+      const beepDataURL = this.generateBeepDataURL();
+      if (this.alarmSound && beepDataURL) {
+        this.alarmSound.src = beepDataURL;
+      }
+      
+      // For iOS, also prepare Web Audio API beep
+      if (this.audioContext) {
+        this.prepareWebAudioBeep();
+      }
+    } catch (error) {
+      console.error('Failed to create iOS-compatible alarm:', error);
+    }
+  }
+
+  // Generate a beep sound as data URL for iOS
+  private generateBeepDataURL(): string {
+    try {
+      // Simple WAV beep sound as base64 data URL
+      const sampleRate = 44100;
+      const frequency = 440;
+      const duration = 0.5;
+      const samples = sampleRate * duration;
+      
+      const buffer = new ArrayBuffer(44 + samples * 2);
+      const view = new DataView(buffer);
+      
+      // WAV header
+      const writeString = (offset: number, string: string) => {
+        for (let i = 0; i < string.length; i++) {
+          view.setUint8(offset + i, string.charCodeAt(i));
+        }
+      };
+      
+      writeString(0, 'RIFF');
+      view.setUint32(4, 36 + samples * 2, true);
+      writeString(8, 'WAVE');
+      writeString(12, 'fmt ');
+      view.setUint32(16, 16, true);
+      view.setUint16(20, 1, true);
+      view.setUint16(22, 1, true);
+      view.setUint32(24, sampleRate, true);
+      view.setUint32(28, sampleRate * 2, true);
+      view.setUint16(32, 2, true);
+      view.setUint16(34, 16, true);
+      writeString(36, 'data');
+      view.setUint32(40, samples * 2, true);
+      
+      // Generate sine wave
+      for (let i = 0; i < samples; i++) {
+        const sample = Math.sin(2 * Math.PI * frequency * i / sampleRate);
+        const value = Math.max(-1, Math.min(1, sample)) * 0x7FFF;
+        view.setInt16(44 + i * 2, value, true);
+      }
+      
+      const blob = new Blob([buffer], { type: 'audio/wav' });
+      return URL.createObjectURL(blob);
+    } catch (error) {
+      console.error('Failed to generate beep data URL:', error);
+      return '';
+    }
+  }
+
+  // Prepare Web Audio API beep for iOS
+  private prepareWebAudioBeep() {
     if (!this.audioContext) return;
 
     try {
-      // Create a simple beep sound using Web Audio API
-      const generateBeep = () => {
-        const oscillator = this.audioContext!.createOscillator();
-        const gainNode = this.audioContext!.createGain();
+      (this as any).playWebAudioBeep = () => {
+        if (!this.audioContext || this.audioContext.state === 'closed') return;
+        
+        // Resume audio context if suspended (iOS requirement)
+        if (this.audioContext.state === 'suspended') {
+          this.audioContext.resume();
+        }
+        
+        const oscillator = this.audioContext.createOscillator();
+        const gainNode = this.audioContext.createGain();
         
         oscillator.connect(gainNode);
-        gainNode.connect(this.audioContext!.destination);
+        gainNode.connect(this.audioContext.destination);
         
-        oscillator.frequency.setValueAtTime(800, this.audioContext!.currentTime);
-        gainNode.gain.setValueAtTime(0.3, this.audioContext!.currentTime);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext!.currentTime + 0.5);
+        oscillator.frequency.setValueAtTime(800, this.audioContext.currentTime);
+        oscillator.type = 'sine';
+        
+        gainNode.gain.setValueAtTime(0.5, this.audioContext.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.5);
         
         oscillator.start();
-        oscillator.stop(this.audioContext!.currentTime + 0.5);
+        oscillator.stop(this.audioContext.currentTime + 0.5);
       };
-
-      // Store the beep function for later use
-      (this as any).playBeep = generateBeep;
     } catch (error) {
-      console.error('Failed to generate alarm tone:', error);
+      console.error('Failed to prepare Web Audio beep:', error);
     }
   }
 
@@ -100,61 +198,323 @@ export class NotificationManager {
     return permission === 'granted';
   }
 
-  // Register service worker message listener
-  private registerServiceWorkerListener() {
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.addEventListener('message', (event) => {
-        const { type, notificationTag } = event.data;
-        
-        if (type === 'MEDICINE_TAKEN') {
-          this.handleMedicineTaken(notificationTag);
-        } else if (type === 'MEDICINE_SKIPPED') {
-          this.handleMedicineSkipped(notificationTag);
+  // Get notification permission status
+  public getPermissionStatus(): NotificationPermission {
+    if (!('Notification' in window)) {
+      return 'denied';
+    }
+    return Notification.permission;
+  }
+
+  // Start the notification checker
+  private startNotificationChecker() {
+    // Check every minute for scheduled notifications
+    this.checkInterval = setInterval(() => {
+      this.checkScheduledNotifications();
+    }, 60000); // Check every minute
+
+    // Also check immediately
+    this.checkScheduledNotifications();
+  }
+
+  // Check for notifications that should be shown now
+  private checkScheduledNotifications() {
+    const now = new Date();
+    const currentTime = now.toTimeString().substring(0, 5); // HH:mm format
+
+    this.notifications
+      .filter(notification => notification.isActive)
+      .forEach(notification => {
+        if (notification.scheduledTime === currentTime) {
+          this.showNotificationWithSoundAndVibration(notification);
         }
       });
-    }
   }
 
-  // Handle medicine taken from notification
-  private handleMedicineTaken(notificationTag: string) {
-    // Find the notification and mark medicine as taken
-    const notification = this.notifications.find(n => `medicine-${n.id}` === notificationTag);
-    if (notification) {
-      // Call API to record consumption
-      this.recordMedicineConsumption(notification.medicineId, 'taken');
+  // Show notification with enhanced sound and vibration for iOS
+  private async showNotificationWithSoundAndVibration(notification: ScheduledNotification) {
+    console.log('Showing notification:', notification);
+
+    const hasPermission = Notification.permission === 'granted';
+    if (!hasPermission) {
+      console.error('Notification permission not granted');
+      return;
     }
-  }
 
-  // Handle medicine skipped from notification
-  private handleMedicineSkipped(notificationTag: string) {
-    const notification = this.notifications.find(n => `medicine-${n.id}` === notificationTag);
-    if (notification) {
-      // Call API to record consumption
-      this.recordMedicineConsumption(notification.medicineId, 'skipped');
+    // Play alarm sound first (before notification for iOS compatibility)
+    if (notification.soundEnabled) {
+      await this.playAlarmSound();
     }
-  }
 
-  // Record medicine consumption
-  private async recordMedicineConsumption(medicineId: number, status: 'taken' | 'skipped') {
-    try {
-      const patientData = localStorage.getItem('patient-data');
-      if (!patientData) return;
+    // Vibrate if supported and enabled (iOS supports vibration)
+    if (notification.vibrationEnabled) {
+      this.triggerVibration();
+    }
 
-      const { phoneNumber } = JSON.parse(patientData);
-
-      await fetch('/api/medicines/consumption', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          phoneNumber,
-          medicineId,
-          status
-        })
+    // Show notification
+    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+      // Use service worker for better notification support
+      navigator.serviceWorker.controller.postMessage({
+        type: 'SHOW_NOTIFICATION',
+        notification: {
+          title: notification.title,
+          body: `${notification.medicineName} - ${notification.dosage} เม็ด\n${notification.message}`,
+          tag: `medicine-${notification.id}`,
+          icon: '/asset/CareClockLOGO.PNG',
+          badge: '/asset/CareClockLOGO.PNG',
+          requireInteraction: true,
+          silent: false, // Allow sound on iOS
+          vibrate: notification.vibrationEnabled ? [200, 100, 200, 100, 200] : undefined,
+          actions: [
+            { action: 'taken', title: '✅ กินแล้ว' },
+            { action: 'skip', title: '⏭️ ข้าม' },
+            { action: 'snooze', title: '⏰ เลื่อน 5 นาที' }
+          ]
+        }
       });
+    } else {
+      // Fallback to regular notification with iOS compatibility
+      const notificationOptions: NotificationOptions = {
+        body: `${notification.medicineName} - ${notification.dosage} เม็ด\n${notification.message}`,
+        icon: '/asset/CareClockLOGO.PNG',
+        badge: '/asset/CareClockLOGO.PNG',
+        tag: `medicine-${notification.id}`,
+        requireInteraction: true,
+        silent: !notification.soundEnabled, // Control sound
+      };
+
+      // Add vibration pattern for supported browsers (iOS Safari)
+      if (notification.vibrationEnabled && 'vibrate' in navigator) {
+        (notificationOptions as any).vibrate = [200, 100, 200, 100, 200];
+      }
+
+      const notif = new Notification(notification.title, notificationOptions);
+
+      // Handle notification click
+      notif.onclick = () => {
+        window.focus();
+        notif.close();
+        this.stopAlarmSound();
+      };
+
+      // For iOS, continue playing sound until user interacts
+      if (this.isIOS && notification.soundEnabled) {
+        this.playIOSAlarmLoop();
+      }
+
+      // Auto close after 30 seconds if not interacted
+      setTimeout(() => {
+        notif.close();
+        this.stopAlarmSound();
+      }, 30000);
+    }
+
+    // Record that notification was shown
+    this.recordNotificationShown(notification.medicineId, 'shown');
+  }
+
+  // Enhanced vibration for iOS
+  private triggerVibration() {
+    try {
+      if ('vibrate' in navigator) {
+        // iOS-compatible vibration pattern
+        const vibrationPattern = this.isIOS 
+          ? [200, 100, 200, 100, 200] // iOS short pattern
+          : [500, 200, 500, 200, 500]; // Android longer pattern
+        
+        navigator.vibrate(vibrationPattern);
+        
+        // For iOS, repeat vibration after delay
+        if (this.isIOS) {
+          setTimeout(() => {
+            navigator.vibrate([200, 100, 200]);
+          }, 2000);
+        }
+      }
     } catch (error) {
-      console.error('Failed to record consumption:', error);
+      console.error('Vibration failed:', error);
+    }
+  }
+
+  // iOS-specific alarm loop
+  private playIOSAlarmLoop() {
+    if (!this.isIOS || this.soundPlaying) return;
+    
+    this.soundPlaying = true;
+    let playCount = 0;
+    const maxPlays = 10; // Limit to prevent infinite loop
+    
+    const playLoop = () => {
+      if (playCount >= maxPlays || !this.soundPlaying) return;
+      
+      this.playAlarmSound().then(() => {
+        playCount++;
+        if (this.soundPlaying) {
+          setTimeout(playLoop, 1000); // Play every second
+        }
+      });
+    };
+    
+    playLoop();
+  }
+
+  // Enhanced alarm sound with iOS compatibility
+  private async playAlarmSound(): Promise<void> {
+    return new Promise((resolve) => {
+      try {
+        // For iOS, we need user interaction to play audio
+        if (this.isIOS) {
+          this.playIOSCompatibleSound().then(resolve);
+          return;
+        }
+
+        // Try Web Audio API first
+        if (this.audioContext && (this as any).playWebAudioBeep) {
+          (this as any).playWebAudioBeep();
+          setTimeout(resolve, 500);
+          return;
+        }
+
+        // Fallback to HTML Audio
+        if (this.alarmSound) {
+          this.alarmSound.currentTime = 0;
+          const playPromise = this.alarmSound.play();
+          
+          if (playPromise) {
+            playPromise
+              .then(() => {
+                setTimeout(() => {
+                  if (this.alarmSound) {
+                    this.alarmSound.pause();
+                    this.alarmSound.currentTime = 0;
+                  }
+                  resolve();
+                }, 500);
+              })
+              .catch((error) => {
+                console.error('Audio play failed:', error);
+                resolve();
+              });
+          } else {
+            setTimeout(resolve, 500);
+          }
+        } else {
+          resolve();
+        }
+      } catch (error) {
+        console.error('Failed to play alarm sound:', error);
+        resolve();
+      }
+    });
+  }
+
+  // iOS-compatible sound playing
+  private async playIOSCompatibleSound(): Promise<void> {
+    return new Promise((resolve) => {
+      try {
+        // Resume audio context if needed
+        if (this.audioContext && this.audioContext.state === 'suspended') {
+          this.audioContext.resume();
+        }
+
+        // Try multiple sound methods for iOS
+        const methods = [
+          () => this.playWebAudioBeepIOS(),
+          () => this.playHTMLAudioIOS(),
+          () => this.createSpeechSynthesisBeep()
+        ];
+
+        const tryNextMethod = (index: number) => {
+          if (index >= methods.length) {
+            resolve();
+            return;
+          }
+
+          try {
+            methods[index]();
+            setTimeout(() => resolve(), 300);
+          } catch (error) {
+            console.error(`iOS sound method ${index} failed:`, error);
+            tryNextMethod(index + 1);
+          }
+        };
+
+        tryNextMethod(0);
+      } catch (error) {
+        console.error('iOS sound playback failed:', error);
+        resolve();
+      }
+    });
+  }
+
+  // Web Audio beep specifically for iOS
+  private playWebAudioBeepIOS() {
+    if (!this.audioContext) return;
+
+    const oscillator = this.audioContext.createOscillator();
+    const gainNode = this.audioContext.createGain();
+    
+    oscillator.connect(gainNode);
+    gainNode.connect(this.audioContext.destination);
+    
+    oscillator.frequency.setValueAtTime(880, this.audioContext.currentTime); // Higher frequency for iOS
+    oscillator.type = 'square'; // More distinct sound
+    
+    gainNode.gain.setValueAtTime(0.3, this.audioContext.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.2);
+    
+    oscillator.start();
+    oscillator.stop(this.audioContext.currentTime + 0.2);
+  }
+
+  // HTML Audio for iOS
+  private playHTMLAudioIOS() {
+    if (!this.alarmSound) return;
+
+    // For iOS, create a new audio element each time
+    const audio = new Audio();
+    audio.src = this.alarmSound.src;
+    audio.volume = 1.0;
+    audio.play().catch(console.error);
+  }
+
+  // Fallback: Use Speech Synthesis as a beep (iOS compatible)
+  private createSpeechSynthesisBeep() {
+    if ('speechSynthesis' in window) {
+      const utterance = new SpeechSynthesisUtterance('beep');
+      utterance.rate = 10;
+      utterance.pitch = 2;
+      utterance.volume = 0.1;
+      speechSynthesis.speak(utterance);
+    }
+  }
+
+  // Stop alarm sound
+  private stopAlarmSound() {
+    this.soundPlaying = false;
+    
+    try {
+      if (this.alarmSound) {
+        this.alarmSound.pause();
+        this.alarmSound.currentTime = 0;
+      }
+      
+      if (this.audioContext && this.audioContext.state !== 'closed') {
+        // Stop any ongoing oscillators
+        this.audioContext.suspend();
+      }
+    } catch (error) {
+      console.error('Failed to stop alarm sound:', error);
+    }
+  }
+
+  // Record consumption status
+  private async recordNotificationShown(medicineId: number, status: string) {
+    try {
+      // This can be used to track notification delivery
+      console.log(`Notification shown for medicine ${medicineId} with status: ${status}`);
+    } catch (error) {
+      console.error('Failed to record notification shown:', error);
     }
   }
 
@@ -204,178 +564,147 @@ export class NotificationManager {
     }
   }
 
-  // Start the notification checker
-  private startNotificationChecker() {
-    // Check every minute
-    this.checkInterval = setInterval(() => {
-      this.checkDueNotifications();
-    }, 60000); // 60 seconds
-
-    // Also check immediately
-    this.checkDueNotifications();
-  }
-
-  // Stop the notification checker
-  public stopNotificationChecker() {
-    if (this.checkInterval) {
-      clearInterval(this.checkInterval);
-      this.checkInterval = null;
-    }
-  }
-
-  // Check for due notifications
-  private checkDueNotifications() {
-    const now = new Date();
-    const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
-    
-    this.notifications.forEach(notification => {
-      if (notification.isActive && notification.scheduledTime === currentTime) {
-        this.triggerNotification(notification);
-      }
-    });
-  }
-
-  // Trigger a notification
-  private async triggerNotification(notification: ScheduledNotification) {
-    const hasPermission = await this.requestNotificationPermission();
-    
-    if (!hasPermission) {
-      console.error('Notification permission not granted');
-      return;
-    }
-
-    // Play alarm sound
-    if (notification.soundEnabled) {
-      this.playAlarmSound();
-    }
-
-    // Vibrate if supported and enabled
-    if (notification.vibrationEnabled && 'vibrate' in navigator) {
-      navigator.vibrate([500, 200, 500, 200, 500]);
-    }
-
-    // Show notification
-    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-      // Use service worker for better notification support
-      navigator.serviceWorker.controller.postMessage({
-        type: 'SHOW_NOTIFICATION',
-        notification: {
-          title: notification.title,
-          body: `${notification.medicineName} - ${notification.dosage} เม็ด\n${notification.message}`,
-          tag: `medicine-${notification.id}`,
-          icon: '/asset/CareClockLOGO.PNG',
-          badge: '/asset/CareClockLOGO.PNG',
-          requireInteraction: true,
-          actions: [
-            { action: 'taken', title: '✅ กินแล้ว' },
-            { action: 'skip', title: '⏭️ ข้าม' },
-            { action: 'snooze', title: '⏰ เลื่อน 5 นาที' }
-          ]
+  // Register service worker message listener
+  private registerServiceWorkerListener() {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.addEventListener('message', (event) => {
+        if (event.data && event.data.type === 'NOTIFICATION_ACTION') {
+          this.handleNotificationAction(event.data.action, event.data.notificationId);
         }
       });
-    } else {
-      // Fallback to regular notification
-      const notif = new Notification(notification.title, {
-        body: `${notification.medicineName} - ${notification.dosage} เม็ด\n${notification.message}`,
-        icon: '/asset/CareClockLOGO.PNG',
-        badge: '/asset/CareClockLOGO.PNG',
-        tag: `medicine-${notification.id}`,
-        requireInteraction: true
-      });
-
-      // Handle notification click
-      notif.onclick = () => {
-        window.focus();
-        notif.close();
-      };
-
-      // Auto close after 30 seconds if not interacted
-      setTimeout(() => {
-        notif.close();
-        this.stopAlarmSound();
-      }, 30000);
     }
   }
 
-  // Play alarm sound
-  private playAlarmSound() {
-    try {
-      if (this.audioContext && this.audioContext.state === 'suspended') {
-        this.audioContext.resume();
-      }
-
-      // Play multiple beeps
-      for (let i = 0; i < 5; i++) {
-        setTimeout(() => {
-          if ((this as any).playBeep) {
-            (this as any).playBeep();
-          }
-        }, i * 1000);
-      }
-    } catch (error) {
-      console.error('Failed to play alarm sound:', error);
+  // Handle notification action
+  private handleNotificationAction(action: string, notificationId: string) {
+    console.log(`Notification action: ${action} for notification: ${notificationId}`);
+    
+    // Stop alarm sound when user interacts
+    this.stopAlarmSound();
+    
+    // Handle different actions
+    switch (action) {
+      case 'taken':
+        // Record medicine taken
+        console.log('Medicine taken');
+        break;
+      case 'skip':
+        // Record medicine skipped
+        console.log('Medicine skipped');
+        break;
+      case 'snooze':
+        // Snooze for 5 minutes
+        this.snoozeNotification(notificationId, 5);
+        break;
     }
   }
 
-  // Stop alarm sound
-  private stopAlarmSound() {
-    try {
-      if (this.alarmSound && !this.alarmSound.paused) {
-        this.alarmSound.pause();
-        this.alarmSound.currentTime = 0;
-      }
-    } catch (error) {
-      console.error('Failed to stop alarm sound:', error);
+  // Snooze notification
+  private snoozeNotification(notificationId: string, minutes: number) {
+    const notification = this.notifications.find(n => n.id === notificationId);
+    if (notification) {
+      const currentTime = new Date();
+      currentTime.setMinutes(currentTime.getMinutes() + minutes);
+      
+      const newTime = currentTime.toTimeString().substring(0, 5);
+      notification.scheduledTime = newTime;
+      
+      this.saveNotificationsToStorage();
+      console.log(`Notification snoozed for ${minutes} minutes`);
     }
   }
 
   // Sync with server notifications
   public async syncNotifications(serverNotifications: any[]) {
     try {
-      // Convert server notifications to local format
-      const localNotifications: ScheduledNotification[] = serverNotifications.map(notif => ({
-        id: `server-${notif.id}`,
-        medicineId: notif.medicineId,
-        medicineName: notif.medicine.medicineName,
-        title: notif.title,
-        message: notif.message || '',
-        scheduledTime: this.formatTimeFromDateTime(notif.scheduledTime),
-        timeType: notif.timeType,
-        isActive: notif.isActive,
-        dosage: notif.medicine.dosage,
-        soundEnabled: true,
-        vibrationEnabled: true
-      }));
-
-      // Update local notifications
-      this.notifications = localNotifications;
+      // Clear existing notifications
+      this.notifications = [];
+      
+      // Add server notifications
+      serverNotifications.forEach(serverNotif => {
+        const notification: ScheduledNotification = {
+          id: `server-${serverNotif.id}`,
+          medicineId: serverNotif.medicineId,
+          medicineName: serverNotif.medicine?.medicineName || 'Unknown Medicine',
+          title: serverNotif.title,
+          message: serverNotif.message || '',
+          scheduledTime: this.formatTimeFromDateTime(serverNotif.scheduledTime),
+          timeType: serverNotif.timeType,
+          isActive: serverNotif.isActive,
+          dosage: serverNotif.medicine?.dosage || 1,
+          soundEnabled: true,
+          vibrationEnabled: true
+        };
+        
+        this.notifications.push(notification);
+      });
+      
       this.saveNotificationsToStorage();
+      console.log(`Synced ${this.notifications.length} notifications`);
     } catch (error) {
       console.error('Failed to sync notifications:', error);
     }
   }
 
-  // Helper function to format DateTime to HH:mm
+  // Format time from DateTime string
   private formatTimeFromDateTime(dateTime: string): string {
     try {
       const date = new Date(dateTime);
-      return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+      return date.toTimeString().substring(0, 5); // HH:mm format
     } catch (error) {
-      console.error('Failed to format time:', error);
-      return '00:00';
+      return dateTime; // Return as-is if parsing fails
     }
   }
 
   // Check if notifications are supported
   public static isSupported(): boolean {
-    return 'Notification' in window && 'serviceWorker' in navigator;
+    return 'Notification' in window;
   }
 
-  // Get notification permission status
-  public getPermissionStatus(): NotificationPermission {
-    return Notification.permission;
+  // Initialize audio context with user interaction (required for iOS)
+  public async initializeAudioWithUserInteraction(): Promise<void> {
+    try {
+      if (this.audioContext && this.audioContext.state === 'suspended') {
+        await this.audioContext.resume();
+        console.log('Audio context resumed after user interaction');
+      }
+      
+      // Play a silent sound to enable audio for iOS
+      if (this.isIOS && this.alarmSound) {
+        this.alarmSound.volume = 0;
+        const playPromise = this.alarmSound.play();
+        if (playPromise) {
+          playPromise.then(() => {
+            this.alarmSound!.pause();
+            this.alarmSound!.volume = 1.0;
+            this.alarmSound!.currentTime = 0;
+          }).catch(console.error);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to initialize audio with user interaction:', error);
+    }
+  }
+
+  // Cleanup
+  public cleanup() {
+    if (this.checkInterval) {
+      clearInterval(this.checkInterval);
+      this.checkInterval = null;
+    }
+    
+    this.stopAlarmSound();
+    
+    if (this.audioContext && this.audioContext.state !== 'closed') {
+      this.audioContext.close();
+    }
+    
+    if (this.wakeLock) {
+      this.wakeLock.release();
+      this.wakeLock = null;
+    }
   }
 }
 
-// Export a singleton instance
+// Export singleton instance
 export const notificationManager = NotificationManager.getInstance();

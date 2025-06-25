@@ -5,7 +5,6 @@ import { localStorageService } from '../../../lib/localStorage'
 import { useRouter } from 'next/navigation'
 import LoadingButton from '@/components/LoadingButton'
 
-// Corrected PatientData interface
 interface PatientData {
   prefix: string
   firstName: string
@@ -15,7 +14,7 @@ interface PatientData {
   medicalRight: string
   chronicDiseases: string | null
   drugAllergy: string | null
-  profileImageUrl: string | null // Corrected field name
+  profileImageUrl: string | null
   registeredAt?: string
 }
 
@@ -36,7 +35,7 @@ const medicalRightOptions = [
   'อื่นๆ'
 ]
 
-// Theme colors
+// Theme colors - same as notification.tsx
 const themeColors = {
   bgGradient: 'linear-gradient(135deg, #FFF6F6 0%, #FFDFDF 50%, #AEDEFC 100%)',
   pink: '#FB929E',
@@ -55,8 +54,8 @@ export default function UserInfo() {
   const [patientData, setPatientData] = useState<PatientData | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [imagePreview, setImagePreview] = useState<string>('')
-  const [rawFile, setRawFile] = useState<File | null>(null) // State for the actual file
-  const [isEditing, setIsEditing] = useState(false) // State to track editing mode
+  const [rawFile, setRawFile] = useState<File | null>(null)
+  const [isEditing, setIsEditing] = useState(false)
   const [customPrefix, setCustomPrefix] = useState('')
   const [customMedicalRight, setCustomMedicalRight] = useState('')
   const [dataSource, setDataSource] = useState<'database' | 'loading' | 'offline' | null>(null)
@@ -66,7 +65,7 @@ export default function UserInfo() {
   // Login form state
   const [loginPhone, setLoginPhone] = useState('')
   
-  // Updated form state
+  // Form state
   const [formData, setFormData] = useState({
     prefix: '',
     firstName: '',
@@ -75,8 +74,28 @@ export default function UserInfo() {
     phoneNumber: '',
     medicalRight: '',
     chronicDiseases: '',
-    drugAllergy: '', // Added drugAllergy
+    drugAllergy: '',
   })
+
+  // Toast notification state
+  const [toast, setToast] = useState<{
+    show: boolean
+    message: string
+    type: 'success' | 'error' | 'info'
+  }>({
+    show: false,
+    message: '',
+    type: 'info'
+  })
+
+  // Show toast notification
+  const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
+    setToast({ show: true, message, type })
+    setTimeout(() => {
+      setToast(prev => ({ ...prev, show: false }))
+    }, 3000)
+  }
+
   const formatPhoneNumber = (value: string) => {
     if (!value) return value;
     const digits = value.replace(/[^\d]/g, '').slice(0, 10);
@@ -89,21 +108,18 @@ export default function UserInfo() {
       return `${digits.slice(0, 3)}-${digits.slice(3)}`;
     }
     return digits;
-  };  useEffect(() => {
-    console.log('🔄 useEffect: Loading patient data...')
-    
-    // Check localStorage first for display purposes only
+  };
+
+  useEffect(() => {
     const savedData = localStorageService.getItem<PatientData>('patient-data')
-    console.log('💾 Saved data from localStorage:', savedData)
-      if (savedData) {
-      console.log('✅ Patient data found in localStorage, setting states...')
+    
+    if (savedData) {
       setPatientData(savedData)
       setIsRegistered(true)
-      setImagePreview(savedData.profileImageUrl || '') // Use profileImageUrl
-      setDataSource('loading') // Set loading state initially
-      console.log('📊 States set from localStorage - isRegistered: true')
+      setImagePreview(savedData.profileImageUrl || '')
+      setDataSource('loading')
       
-      // Also verify with database in background and update if different
+      // Verify with database in background
       if (savedData.phoneNumber) {
         fetch(`/api/data?type=patient-data&phoneNumber=${savedData.phoneNumber}`)
           .then(response => {
@@ -113,47 +129,37 @@ export default function UserInfo() {
             throw new Error('Patient not found in database')
           })
           .then(result => {
-            console.log('🔄 Background sync: Database data:', result.data)
-            // Only update if data is different
             if (JSON.stringify(result.data) !== JSON.stringify(savedData)) {
-              console.log('🔄 Data differs, updating from database...')
               setPatientData(result.data)
-              setImagePreview(result.data.profileImageUrl || '') // Use profileImageUrl
+              setImagePreview(result.data.profileImageUrl || '')
               localStorageService.setItem('patient-data', result.data)
             }
-            setDataSource('database') // Successfully synced with database
+            setDataSource('database')
           })
           .catch(error => {
-            console.log('⚠️ Background database sync failed:', error)
-            setDataSource('offline') // Failed to sync or offline
+            setDataSource('offline')
           })
       } else {
-        setDataSource('offline') // No phone number to verify
+        setDataSource('offline')
       }
-    } else {
-      console.log('❌ No saved patient data found in localStorage')
     }
   }, [])
   
   const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault() // Prevent form from reloading the page
+    e.preventDefault()
     setLoginError('')
-    console.log('🔐 Login attempt started...')
-    console.log('📱 Login phone:', loginPhone)
     
     if (!loginPhone) {
       return
     }
 
     const phoneDigits = loginPhone.replace(/[^\d]/g, '')
-    console.log('🔢 Phone digits:', phoneDigits)
     
     if (phoneDigits.length !== 10) {
       return
     }
 
     setIsLoading(true)
-    console.log('⏳ Loading started...')
     try {
       const response = await fetch(`/api/user/login?phoneNumber=${phoneDigits}`)
 
@@ -163,19 +169,18 @@ export default function UserInfo() {
         throw new Error('Login failed')
       } else {
         const result = await response.json()
-        console.log('✅ Login success:', result)
         setPatientData(result.data)
         setIsRegistered(true)
         setShowAuthForm(false)
         localStorageService.setItem('patient-data', result.data)
         setDataSource('database')
+        showToast('เข้าสู่ระบบสำเร็จ!', 'success')
       }
     } catch (error) {
       console.error('Login Error:', error)
       setLoginError('เกิดข้อผิดพลาดในการเข้าสู่ระบบ')
     } finally {
       setIsLoading(false)
-      console.log('🏁 Loading finished.')
     }
   }
 
@@ -185,7 +190,6 @@ export default function UserInfo() {
 
   const confirmLogout = () => {
     localStorageService.removeItem('patient-data')
-    console.log('✅ Data removed from localStorage')
 
     setPatientData(null)
     setIsRegistered(false)
@@ -203,9 +207,8 @@ export default function UserInfo() {
       chronicDiseases: '',
       drugAllergy: '',
     })
-    setCustomPrefix('')
-    setCustomMedicalRight('')
     setIsLogoutModalOpen(false)
+    showToast('ออกจากระบบแล้ว', 'info')
   }
 
   const cancelLogout = () => {
@@ -213,133 +216,95 @@ export default function UserInfo() {
   }
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
-
+    const { name, value } = e.target
+    
     if (name === 'phoneNumber') {
-      setFormData({ ...formData, phoneNumber: formatPhoneNumber(value) })
+      const formattedPhone = formatPhoneNumber(value)
+      setFormData(prev => ({ ...prev, [name]: formattedPhone }))
     } else {
-      setFormData({ ...formData, [name]: value })
+      setFormData(prev => ({ ...prev, [name]: value }))
     }
   }
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
+    
     if (file) {
-      const allowedTypes = ['image/jpeg', 'image/png'];
-      if (!allowedTypes.includes(file.type)) {
-        // alert('กรุณาอัปโหลดไฟล์รูปภาพนามสกุล .png, .jpg หรือ .jpeg เท่านั้น');
-        e.target.value = ''; // Clear the file input
-        return;
-      }
-
+      setRawFile(file)
       const reader = new FileReader()
-      reader.onloadend = () => {
-        setImagePreview(reader.result as string)
+      reader.onload = (e) => {
+        const result = e.target?.result as string
+        setImagePreview(result)
       }
       reader.readAsDataURL(file)
-      setRawFile(file)
     }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
     setIsLoading(true)
 
     try {
+      const submitData = new FormData()
+      
       const finalPrefix = formData.prefix === 'อื่นๆ' ? customPrefix : formData.prefix
       const finalMedicalRight = formData.medicalRight === 'อื่นๆ' ? customMedicalRight : formData.medicalRight
-
-      if (!finalPrefix || !formData.firstName || !formData.lastName || !formData.age || !formData.phoneNumber) {
-        setIsLoading(false)
-        return
-      }
-
-      const phoneDigits = formData.phoneNumber.replace(/[^\d]/g, '')
-      if (phoneDigits.length !== 10) {
-        setIsLoading(false)
-        return
-      }
-
-      const formDataPayload = new FormData()
-
-      // Append all text fields
-      formDataPayload.append('prefix', finalPrefix)
-      formDataPayload.append('firstName', formData.firstName)
-      formDataPayload.append('lastName', formData.lastName)
-      formDataPayload.append('age', formData.age)
-      formDataPayload.append('phoneNumber', phoneDigits)
-      formDataPayload.append('medicalRight', finalMedicalRight)
-      formDataPayload.append('chronicDiseases', formData.chronicDiseases || '')
-      formDataPayload.append('drugAllergy', formData.drugAllergy || '')
-
-      // Append the file if it exists
+      
+      submitData.append('prefix', finalPrefix)
+      submitData.append('firstName', formData.firstName)
+      submitData.append('lastName', formData.lastName)
+      submitData.append('age', formData.age.toString())
+      submitData.append('phoneNumber', formData.phoneNumber.replace(/[^\d]/g, ''))
+      submitData.append('medicalRight', finalMedicalRight)
+      submitData.append('chronicDiseases', formData.chronicDiseases)
+      submitData.append('drugAllergy', formData.drugAllergy)
+      
       if (rawFile) {
-        formDataPayload.append('profileImg', rawFile)
+        submitData.append('profileImage', rawFile)
       }
 
-      const apiEndpoint = isEditing ? '/api/user/update' : '/api/user/register'
-      const apiMethod = isEditing ? 'PUT' : 'POST'
+      const url = isEditing ? '/api/user/update' : '/api/user/register'
 
-      console.log(`Sending data to ${apiEndpoint} via ${apiMethod}`)
-
-      const response = await fetch(apiEndpoint, {
-        method: apiMethod,
-        body: formDataPayload, // Browser will set Content-Type to multipart/form-data
+      const response = await fetch(url, {
+        method: 'POST',
+        body: submitData,
       })
 
-      console.log('📡 API Response status:', response.status)
-      console.log('📡 API Response ok:', response.ok)
-
       if (!response.ok) {
-        const errorResult = await response.json()
-        console.error('❌ API Error response:', errorResult)
-        throw new Error(errorResult.message || 'An error occurred while saving data.')
+        const errorText = await response.text()
+        throw new Error(`API Error: ${response.status} - ${errorText}`)
       }
 
       const result = await response.json()
-      console.log('✅ API Success response:', result)
 
       const updatedPatientData = result.data
-      localStorageService.setItem('patient-data', updatedPatientData) // Corrected key
+      localStorageService.setItem('patient-data', updatedPatientData)
       setPatientData(updatedPatientData)
       setRawFile(null)
-
 
       if (isEditing) {
         setIsEditing(false)
         setShowAuthForm(false)
+        showToast('แก้ไขข้อมูลสำเร็จ!', 'success')
       } else {
-        // This is a new registration, so we can clear the form
-        // and switch to the "registered" view.
         setShowAuthForm(false)
         setIsRegistered(true)
+        showToast('ลงทะเบียนสำเร็จ!', 'success')
       }
     } catch (error) {
       console.error('An unexpected error occurred:', error)
+      showToast('เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง', 'error')
     } finally {
       setIsLoading(false)
     }
   }
 
   const handleEdit = () => {
-    console.log('🔧 handleEdit clicked!')
-    console.log('📋 Current patientData:', patientData)
-    
     if (patientData) {
-      console.log('✅ Patient data exists, processing edit...')
-      
       const isCustomPrefix = !prefixOptions.includes(patientData.prefix)
       const isCustomMedicalRight = !medicalRightOptions.includes(patientData.medicalRight)
       
-      console.log('🏷️ Prefix check:', { 
-        prefix: patientData.prefix, 
-        isCustom: isCustomPrefix 
-      })
-      console.log('🏥 Medical right check:', { 
-        medicalRight: patientData.medicalRight, 
-        isCustom: isCustomMedicalRight 
-      })
-
       const newFormData = {
         prefix: isCustomPrefix ? 'อื่นๆ' : patientData.prefix,
         firstName: patientData.firstName,
@@ -348,456 +313,701 @@ export default function UserInfo() {
         phoneNumber: formatPhoneNumber(patientData.phoneNumber),
         medicalRight: isCustomMedicalRight ? 'อื่นๆ' : patientData.medicalRight,
         chronicDiseases: patientData.chronicDiseases || '',
-        drugAllergy: patientData.drugAllergy || '', // Add drugAllergy
+        drugAllergy: patientData.drugAllergy || '',
       }
       
-      console.log('📝 Setting form data:', newFormData)
       setFormData(newFormData)
       
       if (isCustomPrefix) {
-        console.log('🎯 Setting custom prefix:', patientData.prefix)
         setCustomPrefix(patientData.prefix)
       } else {
         setCustomPrefix('')
       }
       
       if (isCustomMedicalRight) {
-        console.log('🎯 Setting custom medical right:', patientData.medicalRight)
         setCustomMedicalRight(patientData.medicalRight)
       } else {
         setCustomMedicalRight('')
       }
 
-      console.log('🖼️ Setting image preview:', patientData.profileImageUrl ? 'Image exists' : 'No image')
-      setImagePreview(patientData.profileImageUrl || '') // Use profileImageUrl
-      
-      console.log('🔄 Switching to register mode and showing form...')
-      setIsEditing(true) // Set editing mode
+      setImagePreview(patientData.profileImageUrl || '')
+      setIsEditing(true)
       setAuthMode('register')
       setShowAuthForm(true)
-      
-      console.log('✨ Edit process completed!')
-    } else {      console.log('❌ No patient data found!')
     }
   }
 
   return (
-    <div className="flex-1 px-4 pb-24 overflow-y-auto">
-      <div className="container mx-auto max-w-2xl">
+    <div className="flex-1 px-3 pb-28 overflow-y-auto min-h-screen" style={{ background: themeColors.bgGradient }}>
+      <div className="container mx-auto max-w-md py-4">
         {isRegistered && patientData && !showAuthForm ? (
-          // Display Patient Data
-          <div className="space-y-6">
-            <div className="hero rounded-3xl shadow-lg" style={{ 
-              background: 'linear-gradient(135deg, #FFF6F6 0%, #FFDFDF 50%, #AEDEFC 100%)',
-              border: '2px solid #FB929E'
-            }}>
-              <div className="hero-content text-center">
-                <div className="max-w-md">
-                  <div className="avatar mb-4">
-                    <div className="w-24 rounded-full shadow-xl" style={{ 
-                      border: '4px solid #FB929E',
-                      boxShadow: '0 10px 30px rgba(251, 146, 158, 0.3)'
-                    }}>
-                      {patientData.profileImageUrl ? (
-                        <img src={patientData.profileImageUrl} alt="Profile" />
-                      ) : (
-                        <div className="flex items-center justify-center text-white" style={{ background: 'linear-gradient(135deg, #FB929E, #AEDEFC)' }}>
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                          </svg>
-                        </div>
-                      )}
+          // Display Patient Data - Mobile First
+          <div className="space-y-4">
+            {/* Header */}
+            <div className="text-center mb-6">
+              <h1 className="text-xl font-bold mb-1" style={{ color: themeColors.textPrimary }}>
+                👤 ข้อมูลผู้ใช้
+              </h1>
+              <p className="text-gray-500 text-xs">ข้อมูลส่วนตัวและการรักษา</p>
+            </div>
+
+            {/* Profile Card */}
+            <div 
+              className="bg-white/95 backdrop-blur-sm rounded-3xl shadow-lg border-2 p-6 text-center"
+              style={{ borderColor: themeColors.pink }}
+            >
+              <div className="mb-4">
+                <div 
+                  className="w-20 h-20 mx-auto rounded-full shadow-lg overflow-hidden"
+                  style={{ 
+                    border: `3px solid ${themeColors.pink}`,
+                  }}
+                >
+                  {patientData.profileImageUrl ? (
+                    <img 
+                      src={patientData.profileImageUrl} 
+                      alt="Profile" 
+                      className="w-full h-full object-cover" 
+                    />
+                  ) : (
+                    <div 
+                      className="w-full h-full flex items-center justify-center text-white"
+                      style={{ background: `linear-gradient(135deg, ${themeColors.pink}, ${themeColors.lightBlue})` }}
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
                     </div>
-                  </div>
-                  <h1 className="text-3xl font-bold text-gray-700 mb-2">
-                    {patientData.prefix} {patientData.firstName} {patientData.lastName}
-                  </h1>
-                  <p className="text-lg text-gray-600">อายุ {patientData.age} ปี ✨</p>
+                  )}
+                </div>
+              </div>
+              <h2 
+                className="text-lg font-bold mb-1"
+                style={{ color: themeColors.textPrimary }}
+              >
+                {patientData.prefix} {patientData.firstName} {patientData.lastName}
+              </h2>
+              <p 
+                className="text-sm"
+                style={{ color: themeColors.textSecondary }}
+              >
+                🎂 อายุ {patientData.age} ปี
+              </p>
+            </div>
+
+            {/* Contact Info Card */}
+            <div 
+              className="bg-white/95 backdrop-blur-sm rounded-3xl shadow-lg border-2 p-4"
+              style={{ borderColor: themeColors.lightBlue }}
+            >
+              <h3 
+                className="text-lg font-bold mb-3 flex items-center gap-2"
+                style={{ color: themeColors.textPrimary }}
+              >
+                <div 
+                  className="w-8 h-8 rounded-full flex items-center justify-center"
+                  style={{ backgroundColor: themeColors.lightBlue }}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                  </svg>
+                </div>
+                ข้อมูลการติดต่อ
+              </h3>
+              <div className="space-y-2">
+                <p 
+                  className="text-sm"
+                  style={{ color: themeColors.textSecondary }}
+                >
+                  <strong className="text-gray-700">📞 เบอร์โทรศัพท์:</strong><br />
+                  <span className="font-medium">{formatPhoneNumber(patientData.phoneNumber)}</span>
+                </p>
+              </div>
+            </div>
+
+            {/* Medical Info Card */}
+            <div 
+              className="bg-white/95 backdrop-blur-sm rounded-3xl shadow-lg border-2 p-4"
+              style={{ borderColor: themeColors.lightPink }}
+            >
+              <h3 
+                className="text-lg font-bold mb-3 flex items-center gap-2"
+                style={{ color: themeColors.textPrimary }}
+              >
+                <div 
+                  className="w-8 h-8 rounded-full flex items-center justify-center"
+                  style={{ backgroundColor: themeColors.pink }}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 00-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                </div>
+                ข้อมูลการรักษา
+              </h3>
+              <div className="space-y-3">
+                <div className="p-3 rounded-xl bg-gray-50">
+                  <p className="text-xs font-medium text-gray-700 mb-1">🏥 สิทธิการรักษา</p>
+                  <p 
+                    className="text-sm font-semibold"
+                    style={{ color: themeColors.textPrimary }}
+                  >
+                    {patientData.medicalRight || 'ไม่ระบุ'}
+                  </p>
+                </div>
+                <div className="p-3 rounded-xl bg-gray-50">
+                  <p className="text-xs font-medium text-gray-700 mb-1">💊 โรคประจำตัว</p>
+                  <p 
+                    className="text-sm font-semibold"
+                    style={{ color: themeColors.textPrimary }}
+                  >
+                    {patientData.chronicDiseases || 'ไม่มี'}
+                  </p>
+                </div>
+                <div className="p-3 rounded-xl bg-gray-50">
+                  <p className="text-xs font-medium text-gray-700 mb-1">⚠️ แพ้ยา</p>
+                  <p 
+                    className="text-sm font-semibold"
+                    style={{ color: themeColors.textPrimary }}
+                  >
+                    {patientData.drugAllergy || 'ไม่มี'}
+                  </p>
                 </div>
               </div>
             </div>
 
-            <div className="grid gap-4">
-              <div className="card bg-white/90 shadow-xl rounded-3xl" style={{ border: '2px solid #AEDEFC' }}>
-                <div className="card-body">                  <h2 className="card-title text-gray-700 flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#AEDEFC' }}>
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                    </div>
-                    ข้อมูลการติดต่อ
-                  </h2>                <div className="space-y-2">
-                    <p className="text-gray-600"><strong>📞 เบอร์โทรศัพท์:</strong> {patientData.phoneNumber ? formatPhoneNumber(patientData.phoneNumber) : 'ไม่ระบุ'}</p>
-                  </div>
+            {/* Action Buttons */}
+            <div className="space-y-3 mt-6">
+              <button 
+                onClick={handleEdit}
+                className="w-full py-4 rounded-2xl text-white font-semibold text-base shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98]"
+                style={{
+                  background: `linear-gradient(135deg, ${themeColors.pink}, ${themeColors.lightBlue})`,
+                  border: 'none',
+                  minHeight: '56px'
+                }}
+              >
+                <span className="flex items-center justify-center gap-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  </svg>
+                  ✏️ แก้ไขข้อมูล
+                </span>
+              </button>
+              
+              <button 
+                onClick={handleLogout}
+                className="w-full py-3 rounded-2xl font-semibold text-base border-2 transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98]"
+                style={{ 
+                  borderColor: themeColors.textSecondary,
+                  color: themeColors.textSecondary,
+                  backgroundColor: 'transparent',
+                  minHeight: '48px'
+                }}
+              >
+                <span className="flex items-center justify-center gap-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                  </svg>
+                  🚪 ออกจากระบบ
+                </span>
+              </button>
+            </div>
+          </div>
+        ) : (
+          !showAuthForm ? (
+            // Welcome Screen
+            <div className="flex flex-col justify-center items-center min-h-[80vh]">
+              <div className="w-full">
+                <div className="text-center mb-8">
+                  <h1 
+                    className="text-2xl font-bold mb-2"
+                    style={{ color: themeColors.textPrimary }}
+                  >
+                    👋 ยินดีต้อนรับ
+                  </h1>
+                  <p 
+                    className="text-sm"
+                    style={{ color: themeColors.textSecondary }}
+                  >
+                    เข้าสู่ระบบหรือสมัครสมาชิกใหม่
+                  </p>
                 </div>
-              </div>              <div className="card bg-white/90 shadow-xl rounded-3xl border-2" style={{ borderColor: themeColors.lightPink }}>
-                <div className="card-body">
-                  <h2 className="card-title flex items-center gap-2" style={{ color: themeColors.textPrimary }}>
-                    <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: themeColors.pink }}>
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 00-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                      </svg>
-                    </div>
-                    ข้อมูลการรักษา
-                  </h2>
-                  <div className="space-y-2">
-                    <p style={{ color: themeColors.textSecondary }}><strong>🏥 สิทธิการรักษา:</strong> {patientData.medicalRight || 'ไม่ระบุ'}</p>
-                    <p style={{ color: themeColors.textSecondary }}><strong>💊 โรคประจำตัว:</strong> {patientData.chronicDiseases || 'ไม่มี'}</p>
-                    <p style={{ color: themeColors.textSecondary }}><strong>⚠️ แพ้ยา:</strong> {patientData.drugAllergy || 'ไม่มี'}</p>
-                  </div>
-                </div>
-              </div>              <div className="card-actions justify-center mt-6">
-                <div className="flex flex-row gap-4 w-full max-w-md mx-auto">                  <button 
-                    onClick={() => {
-                      console.log('🖱️ Edit button clicked!')
-                      console.log('📊 Current state:', {
-                        isRegistered,
-                        patientData: patientData ? 'exists' : 'null',
-                        showAuthForm,
-                        authMode,
-                      })
-                      handleEdit()
-                    }}
-                    className="btn btn-lg text-white shadow-lg hover:shadow-xl transition-all flex-1 flex-nowrap border-2"
+
+                <div 
+                  className="bg-white/95 backdrop-blur-sm rounded-3xl shadow-lg border-2 p-6 text-center"
+                  style={{ borderColor: themeColors.lightPink }}
+                >
+                  <div 
+                    className="w-20 h-20 mx-auto mb-4 rounded-full flex items-center justify-center"
                     style={{
-                      background: `linear-gradient(135deg, ${themeColors.pink}, ${themeColors.lightBlue})`,
-                      borderColor: themeColors.pink,
+                      background: `linear-gradient(135deg, ${themeColors.pink}, ${themeColors.lightBlue})`
                     }}
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                     </svg>
-                    <span className="whitespace-nowrap">แก้ไขข้อมูล</span>
-                  </button>
+                  </div>
                   
-                  <button onClick={handleLogout} className="btn btn-lg btn-outline flex-1 flex-nowrap" style={{ 
-                    borderColor: themeColors.textSecondary,
-                    color: themeColors.textSecondary
-                  }}>
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                    </svg>
-                    <span className="whitespace-nowrap">ออกจากระบบ</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>        ) : (
-          // Login/Register Options
-          !showAuthForm ? (
-            <div className="flex-1 flex flex-col justify-center items-center min-h-[60vh]">
-              <div className="w-full max-w-sm">
-                <div className="card bg-white/90 shadow-xl rounded-3xl border-2" style={{ borderColor: themeColors.lightPink }}>
-                  <div className="card-body text-center p-8">
-                    <div className="avatar placeholder mb-6">
-                      <div className="rounded-full w-20 shadow-lg" style={{ background: `linear-gradient(135deg, ${themeColors.pink}, ${themeColors.lightBlue})` }}>
-                        <span className="text-3xl">👤</span>
-                      </div>
-                    </div>
-                    <h2 className="text-2xl font-bold mb-2" style={{ color: themeColors.textPrimary }}>ข้อมูลผู้ใช้</h2>
-                    <p className="text-gray-600 mb-8">เข้าสู่ระบบหรือลงทะเบียนใหม่</p>
-                    
-                    <div className="space-y-4">
-                      <button 
-                        onClick={() => { setAuthMode('login'); setShowAuthForm(true); }}
-                        className="btn btn-lg w-full text-white shadow-lg hover:shadow-xl transition-all"
-                        style={{ background: themeColors.pink, border: 'none' }}
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
-                        </svg>
-                        ลงชื่อเข้าใช้
-                      </button>
-                      
+                  <h2 
+                    className="text-lg font-bold mb-2"
+                    style={{ color: themeColors.textPrimary }}
+                  >
+                    CareClock
+                  </h2>
+                  <p 
+                    className="text-sm mb-6"
+                    style={{ color: themeColors.textSecondary }}
+                  >
+                    ระบบจัดการการกินยาอัจฉริยะ
+                  </p>
 
-                      <button 
-                        onClick={() => { setAuthMode('register'); setShowAuthForm(true); }}
-                        className="btn btn-lg w-full btn-outline hover:text-white"
-                        style={{ borderColor: themeColors.lightBlue, color: themeColors.textPrimary }}
-                      >
+                  <div className="space-y-3">
+                    <button
+                      onClick={() => {
+                        setAuthMode('login')
+                        setShowAuthForm(true)
+                      }}
+                      className="w-full py-4 rounded-2xl text-white font-semibold text-base shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98]"
+                      style={{
+                        background: `linear-gradient(135deg, ${themeColors.pink}, ${themeColors.lightBlue})`,
+                        border: 'none',
+                        minHeight: '56px'
+                      }}
+                    >
+                      <span className="flex items-center justify-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 16l-4-4m0 0l4-4m0 0v3a2 2 0 01-2 2H6m3-3a2 2 0 011-1h1a2 2 0 011 1h1z" />
+                        </svg>
+                        🔐 เข้าสู่ระบบ
+                      </span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setAuthMode('register')
+                        setShowAuthForm(true)
+                      }}
+                      className="w-full py-3 rounded-2xl font-semibold text-base border-2 transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98]"
+                      style={{ 
+                        borderColor: themeColors.textSecondary,
+                        color: themeColors.textSecondary,
+                        backgroundColor: 'transparent',
+                        minHeight: '48px'
+                      }}
+                    >
+                      <span className="flex items-center justify-center gap-2">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
                         </svg>
-                        ลงทะเบียนใหม่
-                      </button>
-                    </div>
+                        📝 สมัครสมาชิก
+                      </span>
+                    </button>
                   </div>
                 </div>
               </div>
             </div>
           ) : (
-            // Show Login or Register Form
-            <div className="flex-1 overflow-y-auto">
-              <div className="w-full max-w-md mx-auto mt-8">
-                <div className="card bg-white/90 shadow-xl rounded-3xl border-2" style={{ borderColor: themeColors.lightPink }}>
-                  <div className="card-body p-6">
-                    <div className="flex items-center justify-between mb-6">                      <h2 className="text-xl font-bold" style={{ color: themeColors.textPrimary }}>
-                        {authMode === 'login' ? 'ลงชื่อเข้าใช้' : (patientData ? 'แก้ไขข้อมูล' : 'ลงทะเบียนใหม่')}
-                      </h2>
-                      <button 
-                        onClick={() => setShowAuthForm(false)}
-                        className="btn btn-sm btn-ghost btn-circle"
+            // Auth Form
+            <div 
+              className="bg-white/95 backdrop-blur-sm rounded-3xl shadow-lg border-2 overflow-hidden"
+              style={{ borderColor: themeColors.lightPink }}
+            >
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <h2 
+                    className="text-xl font-bold"
+                    style={{ color: themeColors.textPrimary }}
+                  >
+                    {authMode === 'login' ? '🔐 เข้าสู่ระบบ' : (isEditing ? '✏️ แก้ไขข้อมูล' : '📝 ลงทะเบียน')}
+                  </h2>
+                  <button 
+                    onClick={() => setShowAuthForm(false)}
+                    className="w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all duration-200 hover:bg-gray-50"
+                    style={{ 
+                      borderColor: themeColors.lightPink,
+                      color: themeColors.textSecondary
+                    }}
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+
+                {authMode === 'login' ? (
+                  <form onSubmit={handleLogin} className="space-y-6">
+                    <div>
+                      <label 
+                        className="block text-sm font-semibold mb-2"
+                        style={{ color: themeColors.textPrimary }}
                       >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </button>
+                        📱 เบอร์โทรศัพท์
+                      </label>
+                      <input
+                        type="tel"
+                        value={loginPhone}
+                        onChange={(e) => {
+                          setLoginPhone(formatPhoneNumber(e.target.value))
+                          if (loginError) setLoginError('')
+                        }}
+                        placeholder="xxx-xxx-xxxx"
+                        className="w-full px-4 py-3 rounded-2xl border-2 bg-white/90 backdrop-blur-sm font-medium text-base transition-all duration-200 focus:outline-none focus:scale-[1.02] active:scale-[0.98]"
+                        style={{ 
+                          borderColor: themeColors.lightPink,
+                          color: themeColors.textPrimary,
+                          minHeight: '48px'
+                        }}
+                        maxLength={12}
+                        required
+                      />
+                      {loginError && (
+                        <div className="mt-2 p-3 rounded-2xl bg-red-50 border-2 border-red-200">
+                          <p className="text-red-600 text-sm font-medium">❌ {loginError}</p>
+                        </div>
+                      )}
                     </div>
 
-                    {authMode === 'login' ? (
-                      // Login Form
-                      <form onSubmit={handleLogin} className="space-y-4">                        <div>
-                          <label className="label">
-                            <span className="label-text font-medium text-gray-800">เบอร์มือถือ</span>
-                          </label>
-                          <input
-                            type="tel"
-                            value={loginPhone}
-                            onChange={(e) => {
-                              setLoginPhone(formatPhoneNumber(e.target.value))
-                              if (loginError) setLoginError('')
+                    <div className="space-y-4">
+                      <LoadingButton
+                        type="submit"
+                        size="lg"
+                        className="w-full py-4 rounded-2xl font-semibold text-lg shadow-lg hover:shadow-xl transition-all duration-300 transform border-0 focus:outline-none focus:scale-[1.02] active:scale-[0.98]"
+                        style={{
+                          background: `linear-gradient(135deg, ${themeColors.pink}, ${themeColors.lightBlue})`,
+                          color: 'white',
+                          minHeight: '56px'
+                        }}
+                        isLoading={isLoading}
+                        loadingText="🔄 กำลังเข้าสู่ระบบ..."
+                      >
+                        🚀 เข้าสู่ระบบ
+                      </LoadingButton>
+                      
+                      <button
+                        type="button"
+                        onClick={() => setAuthMode('register')}
+                        className="w-full py-3 rounded-2xl font-medium border-2 bg-white/50 backdrop-blur-sm hover:bg-white/80 transition-all duration-200 focus:outline-none focus:scale-[1.02] active:scale-[0.98]"
+                        style={{ 
+                          borderColor: themeColors.lightPink,
+                          color: themeColors.textPrimary,
+                          minHeight: '48px'
+                        }}
+                      >
+                        📝 ยังไม่มีบัญชี? ลงทะเบียน
+                      </button>
+                    </div>
+                  </form>
+                ) : (
+                  // Register Form
+                  <form onSubmit={handleSubmit} className="space-y-6">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label 
+                          className="block text-sm font-semibold mb-2"
+                          style={{ color: themeColors.textPrimary }}
+                        >
+                          คำนำหน้า
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <select
+                            name="prefix"
+                            value={formData.prefix}
+                            onChange={handleInputChange}
+                            className={`${formData.prefix === 'อื่นๆ' ? 'w-1/2' : 'w-full'} px-3 py-3 rounded-2xl border-2 bg-white/90 backdrop-blur-sm font-medium text-base transition-all duration-200 focus:outline-none focus:scale-[1.02] active:scale-[0.98]`}
+                            style={{ 
+                              borderColor: themeColors.lightPink,
+                              color: themeColors.textPrimary,
+                              minHeight: '48px'
                             }}
-                            placeholder="xxx-xxx-xxxx"
-                            className="input input-bordered w-full bg-gray-50 text-gray-800 font-medium"
                             required
-                          />
-                        </div>
-                        
-                        {loginError && (
-                          <div role="alert" className="alert alert-error text-white">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                            <span>{loginError}</span>
-                          </div>
-                        )}
-
-                        <div className="space-y-4 mt-6">
-                          <LoadingButton
-                            type="submit"
-                            size="lg"
-                            className="w-full"
-                            style={{ background: themeColors.pink, border: 'none' }}
-                            isLoading={isLoading}
-                            loadingText="กำลังเข้าสู่ระบบ..."
                           >
-                            เข้าสู่ระบบ
-                          </LoadingButton>
-                          
+                            <option value="">เลือก</option>
+                            {prefixOptions.map(prefix => (
+                              <option key={prefix} value={prefix}>{prefix}</option>
+                            ))}
+                          </select>
+                          {formData.prefix === 'อื่นๆ' && (
+                            <input
+                              type="text"
+                              value={customPrefix}
+                              onChange={(e) => setCustomPrefix(e.target.value)}
+                              placeholder="ระบุ"
+                              className="w-1/2 px-3 py-3 rounded-2xl border-2 bg-white/90 backdrop-blur-sm font-medium text-base transition-all duration-200 focus:outline-none focus:scale-[1.02] active:scale-[0.98]"
+                              style={{ 
+                                borderColor: themeColors.lightPink,
+                                color: themeColors.textPrimary,
+                                minHeight: '48px'
+                              }}
+                              required
+                            />
+                          )}
+                        </div>
+                      </div>
+                      
+                      <div>
+                        <label 
+                          className="block text-sm font-semibold mb-2"
+                          style={{ color: themeColors.textPrimary }}
+                        >
+                          อายุ
+                        </label>
+                        <input
+                          type="number"
+                          name="age"
+                          value={formData.age}
+                          onChange={handleInputChange}
+                          placeholder="อายุ"
+                          className="w-full px-3 py-3 rounded-2xl border-2 bg-white/90 backdrop-blur-sm font-medium text-base transition-all duration-200 focus:outline-none focus:scale-[1.02] active:scale-[0.98]"
+                          style={{ 
+                            borderColor: themeColors.lightPink,
+                            color: themeColors.textPrimary,
+                            minHeight: '48px'
+                          }}
+                          min="0"
+                          max="120"
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label 
+                          className="block text-sm font-semibold mb-2"
+                          style={{ color: themeColors.textPrimary }}
+                        >
+                          ชื่อ
+                        </label>
+                        <input
+                          type="text"
+                          name="firstName"
+                          value={formData.firstName}
+                          onChange={handleInputChange}
+                          placeholder="ชื่อ"
+                          className="w-full px-3 py-3 rounded-2xl border-2 bg-white/90 backdrop-blur-sm font-medium text-base transition-all duration-200 focus:outline-none focus:scale-[1.02] active:scale-[0.98]"
+                          style={{ 
+                            borderColor: themeColors.lightPink,
+                            color: themeColors.textPrimary,
+                            minHeight: '48px'
+                          }}
+                          pattern="[ก-ฮะ-์\s]+"
+                          title="กรุณากรอกเป็นภาษาไทยเท่านั้น"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label 
+                          className="block text-sm font-semibold mb-2"
+                          style={{ color: themeColors.textPrimary }}
+                        >
+                          นามสกุล
+                        </label>
+                        <input
+                          type="text"
+                          name="lastName"
+                          value={formData.lastName}
+                          onChange={handleInputChange}
+                          placeholder="นามสกุล"
+                          className="w-full px-3 py-3 rounded-2xl border-2 bg-white/90 backdrop-blur-sm font-medium text-base transition-all duration-200 focus:outline-none focus:scale-[1.02] active:scale-[0.98]"
+                          style={{ 
+                            borderColor: themeColors.lightPink,
+                            color: themeColors.textPrimary,
+                            minHeight: '48px'
+                          }}
+                          pattern="[ก-ฮะ-์\s]+"
+                          title="กรุณากรอกเป็นภาษาไทยเท่านั้น"
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label 
+                        className="block text-sm font-semibold mb-2"
+                        style={{ color: themeColors.textPrimary }}
+                      >
+                        📱 เบอร์โทรศัพท์
+                      </label>
+                      <input
+                        type="tel"
+                        name="phoneNumber"
+                        value={formData.phoneNumber}
+                        onChange={handleInputChange}
+                        placeholder="xxx-xxx-xxxx"
+                        className="w-full px-4 py-3 rounded-2xl border-2 bg-white/90 backdrop-blur-sm font-medium text-base transition-all duration-200 focus:outline-none focus:scale-[1.02] active:scale-[0.98]"
+                        style={{ 
+                          borderColor: themeColors.lightPink,
+                          color: themeColors.textPrimary,
+                          minHeight: '48px'
+                        }}
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label 
+                        className="block text-sm font-semibold mb-2"
+                        style={{ color: themeColors.textPrimary }}
+                      >
+                        🏥 สิทธิการรักษา
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <select
+                          name="medicalRight"
+                          value={formData.medicalRight}
+                          onChange={handleInputChange}
+                          className={`${formData.medicalRight === 'อื่นๆ' ? 'w-1/2' : 'w-full'} px-3 py-3 rounded-2xl border-2 bg-white/90 backdrop-blur-sm font-medium text-base transition-all duration-200 focus:outline-none focus:scale-[1.02] active:scale-[0.98]`}
+                          style={{ 
+                            borderColor: themeColors.lightPink,
+                            color: themeColors.textPrimary,
+                            minHeight: '48px'
+                          }}
+                        >
+                          <option value="">เลือกสิทธิ</option>
+                          {medicalRightOptions.map(option => (
+                            <option key={option} value={option}>{option}</option>
+                          ))}
+                        </select>
+                        {formData.medicalRight === 'อื่นๆ' && (
+                          <input
+                            type="text"
+                            value={customMedicalRight}
+                            onChange={(e) => setCustomMedicalRight(e.target.value)}
+                            placeholder="ระบุสิทธิ"
+                            className="w-1/2 px-3 py-3 rounded-2xl border-2 bg-white/90 backdrop-blur-sm font-medium text-base transition-all duration-200 focus:outline-none focus:scale-[1.02] active:scale-[0.98]"
+                            style={{ 
+                              borderColor: themeColors.lightPink,
+                              color: themeColors.textPrimary,
+                              minHeight: '48px'
+                            }}
+                          />
+                        )}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label 
+                        className="block text-sm font-semibold mb-2"
+                        style={{ color: themeColors.textPrimary }}
+                      >
+                        💊 โรคประจำตัว (ถ้ามี)
+                      </label>
+                      <textarea
+                        name="chronicDiseases"
+                        value={formData.chronicDiseases}
+                        onChange={handleInputChange}
+                        placeholder="ระบุโรคประจำตัว (หากมี)"
+                        className="w-full px-4 py-3 rounded-2xl border-2 bg-white/90 backdrop-blur-sm font-medium text-base transition-all duration-200 focus:outline-none focus:scale-[1.02] active:scale-[0.98] resize-none"
+                        style={{ 
+                          borderColor: themeColors.lightPink,
+                          color: themeColors.textPrimary,
+                          minHeight: '96px'
+                        }}
+                        rows={3}
+                      />
+                    </div>
+
+                    <div>
+                      <label 
+                        className="block text-sm font-semibold mb-2"
+                        style={{ color: themeColors.textPrimary }}
+                      >
+                        ⚠️ แพ้ยา (ถ้ามี)
+                      </label>
+                      <textarea
+                        name="drugAllergy"
+                        value={formData.drugAllergy}
+                        onChange={handleInputChange}
+                        placeholder="ระบุยาที่แพ้ (หากมี)"
+                        className="w-full px-4 py-3 rounded-2xl border-2 bg-white/90 backdrop-blur-sm font-medium text-base transition-all duration-200 focus:outline-none focus:scale-[1.02] active:scale-[0.98] resize-none"
+                        style={{ 
+                          borderColor: themeColors.lightPink,
+                          color: themeColors.textPrimary,
+                          minHeight: '96px'
+                        }}
+                        rows={3}
+                      />
+                    </div>
+
+                    <div>
+                      <label 
+                        className="block text-sm font-semibold mb-2"
+                        style={{ color: themeColors.textPrimary }}
+                      >
+                        📷 รูปภาพประจำตัว
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="file"
+                          accept="image/png, image/jpeg"
+                          onChange={handleImageUpload}
+                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                          id="file-upload"
+                        />
+                        <div 
+                          className="flex items-center justify-between w-full p-3 border-2 border-dashed rounded-2xl bg-white/50 hover:bg-white/80 transition-all duration-200"
+                          style={{ borderColor: themeColors.pink }}
+                        >
+                          <span 
+                            className="font-medium text-sm"
+                            style={{ color: themeColors.textSecondary }}
+                          >
+                            {rawFile ? rawFile.name : 'ยังไม่ได้เลือกไฟล์'}
+                          </span>
                           <button
                             type="button"
-                            onClick={() => setAuthMode('register')}
-                            className="btn btn-ghost w-full"
+                            className="px-4 py-2 rounded-xl text-white font-medium shadow-md hover:shadow-lg transition-all duration-200"
+                            style={{ backgroundColor: themeColors.pink }}
                           >
-                            ยังไม่มีบัญชี? ลงทะเบียนที่นี่
+                            เลือกไฟล์
                           </button>
                         </div>
-                      </form>
-                    ) : (
-                      // Register Form
-                      <form onSubmit={handleSubmit} className="space-y-4">
-                        <div className="grid grid-cols-2 gap-4">                        <div>
-                          <label className="label">
-                            <span className="label-text font-medium text-gray-800">คำนำหน้า</span>
-                          </label>
-                          <div className="flex items-center gap-2">
-                            <select
-                              name="prefix"
-                              value={formData.prefix}
-                              onChange={handleInputChange}
-                              className={`select select-bordered bg-gray-50 text-gray-800 font-medium ${formData.prefix === 'อื่นๆ' ? 'w-1/2' : 'w-full'}`}
-                              required
-                            >
-                              <option value="">เลือก</option>
-                              {prefixOptions.map(prefix => (
-                                <option key={prefix} value={prefix}>{prefix}</option>
-                              ))}
-                            </select>
-                            {formData.prefix === 'อื่นๆ' && (
-                              <input
-                                type="text"
-                                value={customPrefix}
-                                onChange={(e) => setCustomPrefix(e.target.value)}
-                                placeholder="ระบุ"
-                                className="input input-bordered w-1/2 bg-gray-50 text-gray-800 font-medium"
-                                required
-                              />
-                            )}
-                          </div>
-                        </div>                          <div>
-                            <label className="label">
-                              <span className="label-text font-medium text-gray-800">อายุ</span>
-                            </label>
-                            <input
-                              type="number"
-                              name="age"
-                              value={formData.age}
-                              onChange={handleInputChange}
-                              placeholder="อายุ"
-                              className="input input-bordered w-full bg-gray-50 text-gray-800 font-medium"
-                              min="0"
-                              max="120"
-                              required
-                            />
-                          </div>
-                        </div>                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <label className="label">
-                              <span className="label-text font-medium text-gray-800">ชื่อ (ภาษาไทย)</span>
-                            </label>
-                            <input
-                              type="text"
-                              name="firstName"
-                              value={formData.firstName}
-                              onChange={handleInputChange}
-                              placeholder="ชื่อ"
-                              className="input input-bordered w-full bg-gray-50 text-gray-800 font-medium"
-                              pattern="[ก-ฮะ-์\s]+"
-                              title="กรุณากรอกเป็นภาษาไทยเท่านั้น"
-                              required
-                            />
-                          </div>
-                          <div>
-                            <label className="label">
-                              <span className="label-text font-medium text-gray-800">นามสกุล (ภาษาไทย)</span>
-                            </label>
-                            <input
-                              type="text"
-                              name="lastName"
-                              value={formData.lastName}
-                              onChange={handleInputChange}
-                              placeholder="นามสกุล"
-                              className="input input-bordered w-full bg-gray-50 text-gray-800 font-medium"
-                              pattern="[ก-ฮะ-์\s]+"
-                              title="กรุณากรอกเป็นภาษาไทยเท่านั้น"
-                              required
-                            />
-                          </div>
-                        </div>                        <div>
-                          <label className="label">
-                            <span className="label-text font-medium text-gray-800">เบอร์โทรศัพท์</span>
-                          </label>
-                          <input
-                            type="tel"
-                            name="phoneNumber"
-                            value={formData.phoneNumber}
-                            onChange={handleInputChange}
-                            placeholder="xxx-xxx-xxxx"
-                            className="input input-bordered w-full bg-gray-50 text-gray-800 font-medium"
-                            required
-                          />
-                        </div>                        <div>
-                          <label className="label">
-                            <span className="label-text font-medium text-gray-800">สิทธิการรักษา</span>
-                          </label>
-                          <div className="flex items-center gap-2">
-                            <select
-                              name="medicalRight"
-                              value={formData.medicalRight}
-                              onChange={handleInputChange}
-                              className={`select select-bordered bg-gray-50 text-gray-800 font-medium ${formData.medicalRight === 'อื่นๆ' ? 'w-1/2' : 'w-full'}`}
-                            >
-                              <option value="">เลือกสิทธิ</option>
-                              {medicalRightOptions.map(option => (
-                                <option key={option} value={option}>{option}</option>
-                              ))}
-                            </select>
-                            {formData.medicalRight === 'อื่นๆ' && (
-                              <input
-                                type="text"
-                                value={customMedicalRight}
-                                onChange={(e) => setCustomMedicalRight(e.target.value)}
-                                placeholder="ระบุสิทธิ"
-                                className="input input-bordered w-1/2 bg-gray-50 text-gray-800 font-medium"
-                              />
-                            )}
-                          </div>
-                        </div>                        <div>
-                          <label className="label">
-                            <span className="label-text font-medium text-gray-800">โรคประจำตัว (ถ้ามี)</span>
-                          </label>
-                          <textarea
-                            name="chronicDiseases"
-                            value={formData.chronicDiseases}
-                            onChange={handleInputChange}
-                            placeholder="ระบุโรคประจำตัว (หากมี)"
-                            className="textarea textarea-bordered w-full bg-gray-50 text-gray-800 font-medium"
-                            rows={1}
+                      </div>
+                      {imagePreview && (
+                        <div className="mt-2 flex justify-center">
+                          <img 
+                            src={imagePreview} 
+                            alt="Preview" 
+                            className="w-16 h-16 rounded-full object-cover border-2" 
+                            style={{ borderColor: themeColors.pink }} 
                           />
                         </div>
-
-                        <div>
-                          <label className="label">
-                            <span className="label-text font-medium text-gray-800">แพ้ยา (ถ้ามี)</span>
-                          </label>
-                          <textarea
-                            name="drugAllergy"
-                            value={formData.drugAllergy}
-                            onChange={handleInputChange}
-                            placeholder="ระบุยาที่แพ้ (หากมี)"
-                            className="textarea textarea-bordered w-full bg-gray-50 text-gray-800 font-medium"
-                            rows={1}
-                          />
-                        </div>                        <div>
-                          <label className="label">
-                            <span className="label-text font-medium text-gray-800">รูปภาพประจำตัว</span>
-                          </label>
-                          <div className="relative">
-                            <input
-                              type="file"
-                              accept="image/png, image/jpeg"
-                              onChange={handleImageUpload}
-                              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                              id="file-upload"
-                            />
-                            <div className="flex items-center justify-between w-full p-3 border-2 border-dashed rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors"
-                                 style={{ borderColor: themeColors.pink }}>
-                              <span className="text-gray-600 font-medium">
-                                {rawFile ? rawFile.name : 'ยังไม่ได้เลือกไฟล์'}
-                              </span>
-                              <button
-                                type="button"
-                                className="px-4 py-2 rounded-lg text-white font-medium shadow-sm hover:shadow-md transition-all"
-                                style={{ backgroundColor: themeColors.pink }}
-                              >
-                                เลือกไฟล์
-                              </button>
-                            </div>
-                          </div>
-                          {imagePreview && (
-                            <div className="mt-2 flex justify-center">
-                              <img src={imagePreview} alt="Preview" className="w-20 h-20 rounded-full object-cover border-2" style={{ borderColor: themeColors.pink }} />
-                            </div>
-                          )}
-                        </div>
-                        
-                        <div className="space-y-4 mt-6">
-                          <LoadingButton
-                            type="submit"
-                            size="lg"
-                            className="w-full"
-                            style={{
-                              background: `linear-gradient(135deg, ${themeColors.pink}, ${themeColors.lightBlue})`,
-                              border: 'none',
-                            }}
-                            isLoading={isLoading}
-                            loadingText={isEditing ? "กำลังบันทึก..." : "กำลังลงทะเบียน..."}
-                          >
-                            {isEditing ? 'บันทึกการแก้ไข' : 'ลงทะเบียน'}
-                          </LoadingButton>
-                          
-{!isEditing && (
-                            <button
-                              type="button"
-                              onClick={() => setAuthMode('login')}
-                              className="btn btn-ghost w-full"
-                            >
-                              มีบัญชีแล้ว? เข้าสู่ระบบ
-                            </button>
-                          )}
-                        </div>
-                      </form>
-                    )}
-                  </div>
-                </div>
+                      )}
+                    </div>
+                    
+                    <div className="space-y-4 mt-6">
+                      <LoadingButton
+                        type="submit"
+                        size="lg"
+                        className="w-full py-4 rounded-2xl font-semibold text-lg shadow-lg hover:shadow-xl transition-all duration-300 transform border-0 focus:outline-none focus:scale-[1.02] active:scale-[0.98]"
+                        style={{
+                          background: `linear-gradient(135deg, ${themeColors.pink}, ${themeColors.lightBlue})`,
+                          color: 'white',
+                          minHeight: '56px'
+                        }}
+                        isLoading={isLoading}
+                        loadingText={isEditing ? "🔄 กำลังบันทึก..." : "🔄 กำลังลงทะเบียน..."}
+                      >
+                        {isEditing ? '💾 บันทึกการแก้ไข' : '📝 ลงทะเบียน'}
+                      </LoadingButton>
+                      
+                      {!isEditing && (
+                        <button
+                          type="button"
+                          onClick={() => setAuthMode('login')}
+                          className="w-full py-3 rounded-2xl font-medium border-2 bg-white/50 backdrop-blur-sm hover:bg-white/80 transition-all duration-200 focus:outline-none focus:scale-[1.02] active:scale-[0.98]"
+                          style={{ 
+                            borderColor: themeColors.lightPink,
+                            color: themeColors.textPrimary,
+                            minHeight: '48px'
+                          }}
+                        >
+                          🔐 มีบัญชีแล้ว? เข้าสู่ระบบ
+                        </button>
+                      )}
+                    </div>
+                  </form>
+                )}
               </div>
             </div>
           )
@@ -805,19 +1015,83 @@ export default function UserInfo() {
       </div>
 
       {/* Logout Confirmation Modal */}
-      <dialog open={isLogoutModalOpen} className="modal modal-bottom sm:modal-middle">
-        <div className="modal-box bg-white rounded-2xl shadow-xl">
-          <h3 className="font-bold text-lg text-gray-800">ยืนยันการออกจากระบบ</h3>
-          <p className="py-4 text-gray-600">คุณแน่ใจหรือไม่ว่าต้องการออกจากระบบ?</p>
-          <div className="modal-action mt-4">
-            <button className="btn btn-ghost" onClick={cancelLogout}>ยกเลิก</button>
-            <button className="btn btn-error text-white gap-2" onClick={confirmLogout}>
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
-              ออกจากระบบ
-            </button>
+      {isLogoutModalOpen && (
+        <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
+          <div className="absolute inset-0 bg-black bg-opacity-50" onClick={cancelLogout}></div>
+          <div 
+            className="bg-white/95 backdrop-blur-sm rounded-3xl shadow-xl max-w-sm w-full p-6 relative z-10 border-2"
+            style={{ borderColor: themeColors.lightPink }}
+          >
+            <h3 
+              className="text-lg font-bold mb-4"
+              style={{ color: themeColors.textPrimary }}
+            >
+              🚪 ยืนยันการออกจากระบบ
+            </h3>
+            <p 
+              className="text-sm mb-6"
+              style={{ color: themeColors.textSecondary }}
+            >
+              คุณแน่ใจหรือไม่ว่าต้องการออกจากระบบ?
+            </p>
+            <div className="flex gap-3">
+              <button 
+                className="flex-1 py-3 rounded-2xl font-medium border-2 transition-all duration-200 focus:outline-none focus:scale-[1.02] active:scale-[0.98]"
+                style={{ 
+                  borderColor: themeColors.textSecondary,
+                  color: themeColors.textSecondary,
+                  backgroundColor: 'transparent'
+                }}
+                onClick={cancelLogout}
+              >
+                ยกเลิก
+              </button>
+              <button 
+                className="flex-1 py-3 rounded-2xl text-white font-medium shadow-lg hover:shadow-xl transition-all duration-200 focus:outline-none focus:scale-[1.02] active:scale-[0.98]"
+                style={{ backgroundColor: '#ef4444' }}
+                onClick={confirmLogout}
+              >
+                <span className="flex items-center justify-center gap-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                  </svg>
+                  ออกจากระบบ
+                </span>
+              </button>
+            </div>
           </div>
         </div>
-      </dialog>
+      )}
+
+      {/* Toast Notification */}
+      {toast.show && (
+        <div className="fixed top-4 left-4 right-4 z-50 animate-bounce">
+          <div 
+            className={`shadow-xl rounded-2xl border-2 p-4 ${
+              toast.type === 'success' 
+                ? 'bg-gradient-to-r from-green-400 to-green-500 text-white border-green-300' 
+                : toast.type === 'error'
+                ? 'bg-gradient-to-r from-red-400 to-red-500 text-white border-red-300'
+                : 'bg-gradient-to-r from-blue-400 to-blue-500 text-white border-blue-300'
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <div className="text-xl">
+                {toast.type === 'success' ? '✅' : toast.type === 'error' ? '❌' : 'ℹ️'}
+              </div>
+              <div className="flex-1">
+                <p className="font-medium text-sm leading-tight">{toast.message}</p>
+              </div>
+              <button 
+                onClick={() => setToast(prev => ({ ...prev, show: false }))}
+                className="w-6 h-6 rounded-full flex items-center justify-center text-white hover:bg-white/20 transition-all duration-200"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
