@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CareClockPWA - ออฟไลน์</title>
+    <style>
+        body {
+            font-family: 'Prompt', sans-serif;
+            background: linear-gradient(135deg, #FFF6F6 0%, #FFDFDF 50%, #AEDEFC 100%);
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #575757;
+        }
+        .container {
+            text-align: center;
+            padding: 2rem;
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 24px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            max-width: 400px;
+            width: 90%;
+        }
+        .icon {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+        }
+        h1 {
+            color: #FB929E;
+            margin-bottom: 1rem;
+            font-size: 1.5rem;
+            font-weight: 700;
+        }
+        p {
+            margin-bottom: 1rem;
+            line-height: 1.6;
+        }
+        .feature-list {
+            text-align: left;
+            background: #f8f9fa;
+            padding: 1rem;
+            border-radius: 12px;
+            margin: 1rem 0;
+        }
+        .feature-list li {
+            margin-bottom: 0.5rem;
+        }
+        .retry-btn {
+            background: linear-gradient(135deg, #FB929E, #AEDEFC);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 24px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 12px rgba(251, 146, 158, 0.3);
+        }
+        .retry-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(251, 146, 158, 0.4);
+        }
+        .status {
+            margin-top: 1rem;
+            padding: 0.5rem;
+            border-radius: 8px;
+            font-size: 0.9rem;
+        }
+        .online {
+            background: #d4edda;
+            color: #155724;
+        }
+        .offline {
+            background: #f8d7da;
+            color: #721c24;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="icon">📱</div>
+        <h1>CareClockPWA</h1>
+        <p>คุณกำลังใช้งานแบบออฟไลน์</p>
+        
+        <div class="feature-list">
+            <p><strong>ฟีเจอร์ที่ยังใช้ได้:</strong></p>
+            <ul>
+                <li>✅ ดูข้อมูลยาที่บันทึกไว้</li>
+                <li>✅ รับการแจ้งเตือนตามเวลา</li>
+                <li>✅ บันทึกการกินยา (จะส่งเมื่อออนไลน์)</li>
+                <li>✅ ใช้งานพื้นฐานของแอพ</li>
+            </ul>
+        </div>
+
+        <p>เมื่อกลับมาออนไลน์ ข้อมูลจะถูกซิงค์อัตโนมัติ</p>
+        
+        <button class="retry-btn" onclick="checkConnection()">
+            ลองเชื่อมต่อใหม่
+        </button>
+
+        <div id="status" class="status offline">
+            🔴 ไม่มีการเชื่อมต่ออินเทอร์เน็ต
+        </div>
+    </div>
+
+    <script>
+        function checkConnection() {
+            if (navigator.onLine) {
+                document.getElementById('status').className = 'status online';
+                document.getElementById('status').innerHTML = '🟢 เชื่อมต่ออินเทอร์เน็ตแล้ว';
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1000);
+            } else {
+                document.getElementById('status').className = 'status offline';
+                document.getElementById('status').innerHTML = '🔴 ยังไม่มีการเชื่อมต่ออินเทอร์เน็ต';
+            }
+        }
+
+        // Check connection status periodically
+        setInterval(checkConnection, 5000);
+
+        // Listen for online event
+        window.addEventListener('online', () => {
+            document.getElementById('status').className = 'status online';
+            document.getElementById('status').innerHTML = '🟢 เชื่อมต่ออินเทอร์เน็ตแล้ว - กำลังโหลด...';
+            setTimeout(() => {
+                window.location.reload();
+            }, 1000);
+        });
+
+        // Listen for offline event
+        window.addEventListener('offline', () => {
+            document.getElementById('status').className = 'status offline';
+            document.getElementById('status').innerHTML = '🔴 ไม่มีการเชื่อมต่ออินเทอร์เน็ต';
+        });
+    </script>
+</body>
+</html>

@@ -8,60 +8,91 @@ datasource db {
 }
 
 model Patient {
-  id              Int             @id @default(autoincrement())
-  prefix          String          @db.VarChar(20)
-  firstName       String          @db.VarChar(100)
-  lastName        String          @db.VarChar(100)
-  age             Int
-  phoneNumber     String          @unique @db.VarChar(20)
-  medicalRight    String?         @db.VarChar(100)
-  chronicDiseases String?
-  drugAllergy     String?
-  profileImageUrl String?
-  registeredAt    DateTime        @default(now()) @db.Timestamp(6)
-  createdAt       DateTime        @default(now()) @db.Timestamp(6)
-  updatedAt       DateTime        @updatedAt @db.Timestamp(6)
-  medicines       medicines[]
-  notifications   notifications[]
-  prescriptions   prescriptions[]
+  id                    Int                     @id @default(autoincrement())
+  prefix                String                  @db.VarChar(20)
+  firstName             String                  @db.VarChar(100)
+  lastName              String                  @db.VarChar(100)
+  age                   Int
+  phoneNumber           String                  @unique @db.VarChar(20)
+  medicalRight          String?                 @db.VarChar(100)
+  chronicDiseases       String?
+  drugAllergy           String?
+  profileImageUrl       String?
+  registeredAt          DateTime                @default(now()) @db.Timestamp(6)
+  createdAt             DateTime                @default(now()) @db.Timestamp(6)
+  updatedAt             DateTime                @updatedAt @db.Timestamp(6)
+  medicines             Medicine[]
+  medicineNotifications MedicineNotification[]
+  medicineConsumptions  MedicineConsumption[]
+  prescriptions         Prescription[]
 
   @@map("patients")
 }
 
-model medicines {
-  id            Int             @id @default(autoincrement())
-  patientId     Int
-  name          String          @db.VarChar(200)
-  dosage        String          @db.VarChar(100)
-  timeSchedule  Json            @default("[]")
-  isActive      Boolean         @default(true)
-  remainingDays Int?            @default(0)
-  notes         String?
-  imageUrl      String?
-  colorBg       String          @default("#FB929E") @db.VarChar(20)
-  colorText     String          @default("#FFFFFF") @db.VarChar(20)
-  createdAt     DateTime        @default(now()) @db.Timestamp(6)
-  updatedAt     DateTime        @db.Timestamp(6)
-  patients      Patient         @relation(fields: [patientId], references: [id], onDelete: Cascade)
-  notifications notifications[]
+model Medicine {
+  id                    Int                     @id @default(autoincrement())
+  patientId             Int
+  medicineName          String                  @db.VarChar(200)
+  medicineDetails       String?
+  consumptionType       String                  @db.VarChar(100)
+  quantity              Int
+  currentStock          Int                     @default(0)
+  dosage                Int
+  morning               Boolean                 @default(false)
+  afternoon             Boolean                 @default(false)
+  evening               Boolean                 @default(false)
+  beforeBed             Boolean                 @default(false)
+  medicineImageUrl      String?
+  isActive              Boolean                 @default(true)
+  createdAt             DateTime                @default(now()) @db.Timestamp(6)
+  updatedAt             DateTime                @updatedAt @db.Timestamp(6)
+  patient               Patient                 @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  medicineNotifications MedicineNotification[]
+  medicineConsumptions  MedicineConsumption[]
+
+  @@map("medicine")
 }
 
-model notifications {
-  id            Int        @id @default(autoincrement())
-  patientId     Int
-  medicineId    Int?
-  title         String     @db.VarChar(200)
-  message       String
-  scheduledTime DateTime   @db.Timestamp(6)
-  isCompleted   Boolean    @default(false)
-  isActive      Boolean    @default(true)
-  createdAt     DateTime   @default(now()) @db.Timestamp(6)
-  updatedAt     DateTime   @db.Timestamp(6)
-  medicines     medicines? @relation(fields: [medicineId], references: [id], onDelete: Cascade)
-  patients      Patient    @relation(fields: [patientId], references: [id], onDelete: Cascade)
+model MedicineNotification {
+  id                   Int                   @id @default(autoincrement())
+  patientId            Int
+  medicineId           Int
+  title                String                @db.VarChar(200)
+  message              String?
+  scheduledTime        DateTime              @db.Time()
+  timeType             String                @db.VarChar(20) // morning, afternoon, evening, beforeBed
+  isActive             Boolean               @default(true)
+  createdAt            DateTime              @default(now()) @db.Timestamp(6)
+  updatedAt            DateTime              @updatedAt @db.Timestamp(6)
+  patient              Patient               @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  medicine             Medicine              @relation(fields: [medicineId], references: [id], onDelete: Cascade)
+  medicineConsumptions MedicineConsumption[]
+
+  @@map("medicine_notifications")
 }
 
-model prescriptions {
+model MedicineConsumption {
+  id             Int                   @id @default(autoincrement())
+  patientId      Int
+  medicineId     Int
+  notificationId Int?
+  scheduledAt    DateTime              @db.Timestamp(6)
+  consumedAt     DateTime?             @db.Timestamp(6)
+  dosageTaken    Int?
+  status         String                @default("pending") @db.VarChar(20) // pending, taken, skipped, missed
+  notes          String?
+  createdAt      DateTime              @default(now()) @db.Timestamp(6)
+  updatedAt      DateTime              @updatedAt @db.Timestamp(6)
+  patient        Patient               @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  medicine       Medicine              @relation(fields: [medicineId], references: [id], onDelete: Cascade)
+  notification   MedicineNotification? @relation(fields: [notificationId], references: [id], onDelete: SetNull)
+
+  @@map("medicine_consumption")
+}
+
+
+
+model Prescription {
   id               Int       @id @default(autoincrement())
   patientId        Int
   title            String    @db.VarChar(200)
@@ -75,6 +106,8 @@ model prescriptions {
   hospitalName     String?   @db.VarChar(200)
   isActive         Boolean   @default(true)
   createdAt        DateTime  @default(now()) @db.Timestamp(6)
-  updatedAt        DateTime  @db.Timestamp(6)
-  patients         Patient   @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  updatedAt        DateTime  @updatedAt @db.Timestamp(6)
+  patient          Patient   @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@map("prescriptions")
 }

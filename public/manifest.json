@@ -1,38 +1,58 @@
 {
-  "name": "CareClockPWA",
+  "name": "CareClockPWA - แอพแจ้งเตือนกินยา",
   "short_name": "CareClock",
-  "description": "Progressive Web App for CareClockPWA - Mobile-first application",
-  "theme_color": "#2196f3",
-  "background_color": "#ffffff",
+  "description": "แอพพลิเคชันแจ้งเตือนกินยาแบบ PWA - ทำงานได้แม้ offline พร้อมเสียงปลุก",
+  "theme_color": "#FB929E",
+  "background_color": "#FFF6F6",
   "display": "standalone",
   "orientation": "portrait",
   "scope": "/",
   "start_url": "/",
+  "permissions": [
+    "notifications",
+    "background-sync",
+    "vibrate"
+  ],
   "icons": [
     {
-      "src": "/icon-192x192.png",
+      "src": "/asset/CareClockLOGO.PNG",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "maskable"
+      "purpose": "any"
     },
     {
-      "src": "/icon-256x256.png",
+      "src": "/asset/CareClockLOGO.PNG",
       "sizes": "256x256",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any"
     },
     {
-      "src": "/icon-384x384.png",
+      "src": "/asset/CareClockLOGO.PNG",
       "sizes": "384x384",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any"
     },
     {
-      "src": "/icon-512x512.png",
+      "src": "/asset/CareClockLOGO.PNG",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
     }
   ],
-  "categories": ["productivity", "health"],
+  "categories": ["productivity", "health", "medical"],
   "lang": "th",
-  "dir": "ltr"
+  "dir": "ltr",
+  "features": [
+    "Cross Platform",
+    "offline",
+    "Push Notifications"
+  ],
+  "screenshots": [
+    {
+      "src": "/asset/CareClockLOGO.PNG",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide"
+    }
+  ]
 }

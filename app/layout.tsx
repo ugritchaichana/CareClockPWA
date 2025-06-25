@@ -2,6 +2,7 @@ import './globals.css'
 import type { Metadata, Viewport } from 'next'
 import { Prompt } from 'next/font/google'
 import PWAInstaller from '@/components/PWAInstaller'
+import ServiceWorkerManager from '@/components/ServiceWorkerManager'
 
 const prompt = Prompt({ 
   subsets: ['thai', 'latin'],
@@ -11,10 +12,10 @@ const prompt = Prompt({
 })
 
 export const metadata: Metadata = {
-  title: 'CareClockPWA',
-  description: 'Progressive Web App for healthcare management - Mobile optimized',
+  title: 'CareClockPWA - แอพแจ้งเตือนกินยา',
+  description: 'แอพพลิเคชันแจ้งเตือนกินยาแบบ PWA - ทำงานได้แม้ offline พร้อมเสียงปลุก',
   manifest: '/manifest.json',
-  keywords: ['healthcare', 'mobile', 'pwa', 'care', 'clock'],
+  keywords: ['healthcare', 'mobile', 'pwa', 'care', 'clock', 'medicine', 'reminder', 'กินยา', 'แจ้งเตือน'],
   authors: [{ name: 'CareClockPWA Team' }],
   creator: 'CareClockPWA',
   publisher: 'CareClockPWA',
@@ -39,7 +40,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
-  themeColor: '#2196f3',
+  themeColor: '#FB929E',
 }
 
 export default function RootLayout({
@@ -57,8 +58,8 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="CareClockPWA" />
         <meta name="mobile-web-app-capable" content="yes" />
-      </head>
-      <body className={`${prompt.className} antialiased`}>
+      </head>      <body className={`${prompt.className} antialiased`}>
+        <ServiceWorkerManager />
         <PWAInstaller />
         <main className="min-h-screen bg-gray-50">
           {children}

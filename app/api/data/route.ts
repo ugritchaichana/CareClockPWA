@@ -66,21 +66,14 @@ export async function POST(request: NextRequest) {
           message: 'Patient data saved successfully',
           data: newPatient,
           timestamp: new Date().toISOString(),
-        });
-      }
+        });      }
     }
 
-    const newCareData = await prisma.careData.create({
-      data: {
-        data: body,
-      },
-    });
-
-    return NextResponse.json({
-      message: 'Data saved successfully',
-      data: newCareData,
-      timestamp: new Date().toISOString(),
-    });
+    // If not patient data, return an error for unsupported data types
+    return NextResponse.json(
+      { error: 'Unsupported data type' },
+      { status: 400 }
+    );
   } catch (error) {
     console.error('API Error:', error);
     return NextResponse.json(
