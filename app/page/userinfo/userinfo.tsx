@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { localStorageService } from '../../../lib/localStorage'
 import { useRouter } from 'next/navigation'
-import LoadingSpinner from '@/components/LoadingSpinner' // Import the spinner
+import LoadingButton from '@/components/LoadingButton'
 
 // Corrected PatientData interface
 interface PatientData {
@@ -571,14 +571,16 @@ export default function UserInfo() {
                         )}
 
                         <div className="space-y-4 mt-6">
-                          <button
+                          <LoadingButton
                             type="submit"
-                            className={`btn btn-lg w-full text-white`}
+                            size="lg"
+                            className="w-full"
                             style={{ background: themeColors.pink, border: 'none' }}
-                            disabled={isLoading}
+                            isLoading={isLoading}
+                            loadingText="กำลังเข้าสู่ระบบ..."
                           >
-                            {isLoading ? <LoadingSpinner /> : 'เข้าสู่ระบบ'}
-                          </button>
+                            เข้าสู่ระบบ
+                          </LoadingButton>
                           
                           <button
                             type="button"
@@ -768,31 +770,29 @@ export default function UserInfo() {
                         </div>
                         
                         <div className="space-y-4 mt-6">
-                          <button
+                          <LoadingButton
                             type="submit"
-                            className={`btn btn-lg w-full text-white`}
+                            size="lg"
+                            className="w-full"
                             style={{
                               background: `linear-gradient(135deg, ${themeColors.pink}, ${themeColors.lightBlue})`,
                               border: 'none',
                             }}
-                            disabled={isLoading}
+                            isLoading={isLoading}
+                            loadingText={isEditing ? "กำลังบันทึก..." : "กำลังลงทะเบียน..."}
                           >
-                            {isLoading ? (
-                              <LoadingSpinner />
-                            ) : isEditing ? (
-                              'บันทึกการแก้ไข'
-                            ) : (
-                              'ลงทะเบียน'
-                            )}
-                          </button>
+                            {isEditing ? 'บันทึกการแก้ไข' : 'ลงทะเบียน'}
+                          </LoadingButton>
                           
-                          <button
-                            type="button"
-                            onClick={() => setAuthMode('login')}
-                            className="btn btn-ghost w-full"
-                          >
-                            มีบัญชีแล้ว? เข้าสู่ระบบ
-                          </button>
+{!isEditing && (
+                            <button
+                              type="button"
+                              onClick={() => setAuthMode('login')}
+                              className="btn btn-ghost w-full"
+                            >
+                              มีบัญชีแล้ว? เข้าสู่ระบบ
+                            </button>
+                          )}
                         </div>
                       </form>
                     )}

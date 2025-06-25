@@ -147,6 +147,22 @@ export default function SummaryPage() {
             </div>
         </div>
 
+        {/* Demo Links */}
+        <div className="card bg-white/90 shadow-lg mb-4">
+          <div className="card-body p-5">
+            <h2 className="card-title font-bold text-xl mb-4" style={{color: themeColors.textPrimary}}>🛠️ Demo & Test</h2>
+            <div className="flex flex-wrap gap-3">
+              <Link 
+                href="/test/loading-demo" 
+                className="btn btn-outline"
+                style={{ borderColor: themeColors.pink, color: themeColors.pink }}
+              >
+                🎨 Loading Animation Demo
+              </Link>
+            </div>
+          </div>
+        </div>
+
       </main>
 
       {/* Bottom Navigation */}

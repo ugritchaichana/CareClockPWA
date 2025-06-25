@@ -71,7 +71,8 @@ export async function POST(request: NextRequest) {
       title, 
       message, 
       scheduledTime, 
-      timeType 
+      timeType,
+      groupId 
     } = body
 
     if (!phoneNumber || !medicineId || !title || !scheduledTime || !timeType) {
@@ -138,7 +139,8 @@ export async function POST(request: NextRequest) {
         title,
         message: message || `เวลากินยา ${medicine.medicineName}`,
         scheduledTime: scheduledDateTime,
-        timeType
+        timeType,
+        groupId: groupId || null // Add groupId to database
       }
     })
 

@@ -5,13 +5,12 @@ const prisma = new PrismaClient()
 
 // POST - Record medicine consumption (taken/skipped)
 export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json()
+  try {    const body = await request.json()
     const { 
       phoneNumber, 
       medicineId, 
       notificationId,
-      status, // 'taken' or 'skipped'
+      status, // 'taken', 'skipped', or 'cancel'
       dosageTaken,
       notes 
     } = body
@@ -48,30 +47,80 @@ export async function POST(request: NextRequest) {
         { error: 'Medicine not found or does not belong to user' },
         { status: 404 }
       )
-    }
+    }    const now = new Date()
 
-    const now = new Date()
+    // Handle cancel status - find the latest consumption record for today and reverse it
+    if (status === 'cancel' && notificationId) {
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      const tomorrow = new Date(today)
+      tomorrow.setDate(tomorrow.getDate() + 1)
 
-    // Record consumption
+      // Find the latest consumption record for this notification today
+      const latestConsumption = await prisma.medicineConsumption.findFirst({
+        where: {
+          patientId: user.id,
+          medicineId: parseInt(medicineId),
+          notificationId: parseInt(notificationId),
+          createdAt: {
+            gte: today,
+            lt: tomorrow
+          },
+          status: 'taken'
+        },
+        orderBy: { createdAt: 'desc' }
+      })
+
+      if (latestConsumption) {
+        // Update the record to cancelled
+        await prisma.medicineConsumption.update({
+          where: { id: latestConsumption.id },
+          data: {
+            status: 'cancelled',
+            notes: (latestConsumption.notes || '') + ' [CANCELLED]'
+          }
+        })
+
+        // Restore medicine stock
+        await prisma.medicine.update({
+          where: { id: parseInt(medicineId) },
+          data: {
+            currentStock: medicine.currentStock + (latestConsumption.dosageTaken || medicine.dosage)
+          }
+        })
+
+        return NextResponse.json({
+          message: 'Consumption cancelled successfully',
+          consumption: latestConsumption
+        })
+      } else {
+        return NextResponse.json(
+          { error: 'No consumption record found to cancel' },
+          { status: 404 }
+        )
+      }
+    }    // Record new consumption (taken/skipped)
+    const actualDosage = dosageTaken || medicine.dosage
+    
     const consumption = await prisma.medicineConsumption.create({
       data: {
         patientId: user.id,
         medicineId: parseInt(medicineId),
         notificationId: notificationId ? parseInt(notificationId) : null,
-        scheduledAt: now, // For now, use current time as scheduled time
+        scheduledAt: now,
         consumedAt: status === 'taken' ? now : null,
-        dosageTaken: dosageTaken || (status === 'taken' ? medicine.dosage : 0),
+        dosageTaken: status === 'taken' ? actualDosage : 0,
         status,
         notes
       }
     })
 
     // Update medicine stock if taken
-    if (status === 'taken' && dosageTaken) {
+    if (status === 'taken') {
       await prisma.medicine.update({
         where: { id: parseInt(medicineId) },
         data: {
-          currentStock: Math.max(0, medicine.currentStock - dosageTaken)
+          currentStock: Math.max(0, medicine.currentStock - actualDosage)
         }
       })
     }

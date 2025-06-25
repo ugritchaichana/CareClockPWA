@@ -64,6 +64,7 @@ model MedicineNotification {
   isActive             Boolean               @default(true)
   createdAt            DateTime              @default(now()) @db.Timestamp(6)
   updatedAt            DateTime              @updatedAt @db.Timestamp(6)
+  groupId              String?               @map("group_id") @db.VarChar(100) // For grouping notifications created together
   patient              Patient               @relation(fields: [patientId], references: [id], onDelete: Cascade)
   medicine             Medicine              @relation(fields: [medicineId], references: [id], onDelete: Cascade)
   medicineConsumptions MedicineConsumption[]
