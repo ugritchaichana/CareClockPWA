@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import BottomNav from '@/components/BottomNav'
+import HiddenTestTab from '@/components/HiddenTestTab'
 import Welcome from './page/welcome/welcome'
 import UserInfo from './page/userinfo/userinfo'
 import Medicine from './page/medicine/medicine'
@@ -170,6 +171,9 @@ export default function Home() {
 
       {/* Bottom Navigation */}
       <BottomNav activeTab={activeTab} onTabChange={setActiveTab} />
+
+      {/* Hidden Test Tab */}
+      <HiddenTestTab />
     </div>
   )
 }

@@ -257,6 +257,19 @@ export default function PWAiOSTest() {
             </div>
           </div>
 
+          {/* Back to Home Button */}
+          <div className="mb-4">
+            <button
+              onClick={() => window.location.href = '/'}
+              className="w-full bg-gradient-to-r from-pink-500 to-rose-500 text-white rounded-2xl p-3 font-semibold shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+              </svg>
+              <span>🏠 กลับไปหน้าแรก</span>
+            </button>
+          </div>
+
           {/* Test Buttons */}
           <div className="grid grid-cols-2 gap-3 mb-6">
             <button

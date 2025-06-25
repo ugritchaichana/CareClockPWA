@@ -153,6 +153,19 @@ export default function IOSNotificationTest() {
 
   return (
     <div className="container mx-auto max-w-2xl p-6">
+      {/* Back to Home Button */}
+      <div className="mb-6">
+        <button
+          onClick={() => window.location.href = '/'}
+          className="bg-gradient-to-r from-pink-500 to-rose-500 text-white rounded-2xl px-4 py-2 font-semibold shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] flex items-center gap-2"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+          </svg>
+          <span>🏠 กลับไปหน้าแรก</span>
+        </button>
+      </div>
+
       <div className="text-center mb-8">
         <h1 className="text-2xl font-bold text-gray-800 mb-2">
           ทดสอบ Notification สำหรับ iOS
