@@ -414,7 +414,9 @@ export class NotificationManager {
       try {
         // Resume audio context if needed
         if (this.audioContext && this.audioContext.state === 'suspended') {
-          this.audioContext.resume();
+          this.audioContext.resume().then(() => {
+            console.log('AudioContext resumed for iOS sound');
+          });
         }
 
         // Try multiple sound methods for iOS
@@ -424,22 +426,33 @@ export class NotificationManager {
           () => this.createSpeechSynthesisBeep()
         ];
 
-        const tryNextMethod = (index: number) => {
-          if (index >= methods.length) {
+        let methodIndex = 0;
+        const playWithMethod = () => {
+          if (methodIndex >= methods.length) {
             resolve();
             return;
           }
 
           try {
-            methods[index]();
-            setTimeout(() => resolve(), 300);
+            console.log(`Trying iOS sound method ${methodIndex}`);
+            methods[methodIndex]();
+            methodIndex++;
+            setTimeout(() => {
+              if (methodIndex < methods.length) {
+                // Try next method as backup
+                setTimeout(playWithMethod, 100);
+              } else {
+                resolve();
+              }
+            }, 200);
           } catch (error) {
-            console.error(`iOS sound method ${index} failed:`, error);
-            tryNextMethod(index + 1);
+            console.error(`iOS sound method ${methodIndex} failed:`, error);
+            methodIndex++;
+            playWithMethod();
           }
         };
 
-        tryNextMethod(0);
+        playWithMethod();
       } catch (error) {
         console.error('iOS sound playback failed:', error);
         resolve();
@@ -505,6 +518,82 @@ export class NotificationManager {
       }
     } catch (error) {
       console.error('Failed to stop alarm sound:', error);
+    }
+  }
+
+  // Initialize audio with user interaction (required for iOS)
+  public async initializeAudioWithUserInteraction(): Promise<boolean> {
+    try {
+      // Resume audio context if suspended (iOS requirement)
+      if (this.audioContext && this.audioContext.state === 'suspended') {
+        await this.audioContext.resume();
+        console.log('AudioContext resumed successfully');
+      }
+
+      // Test play a silent sound to unlock audio on iOS
+      if (this.isIOS) {
+        await this.unlockIOSAudio();
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Failed to initialize audio with user interaction:', error);
+      return false;
+    }
+  }
+
+  // Unlock iOS audio by playing a silent sound
+  private async unlockIOSAudio(): Promise<void> {
+    return new Promise((resolve) => {
+      try {
+        if (!this.audioContext) {
+          resolve();
+          return;
+        }
+
+        // Create a silent oscillator to unlock audio
+        const oscillator = this.audioContext.createOscillator();
+        const gainNode = this.audioContext.createGain();
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(this.audioContext.destination);
+        
+        oscillator.frequency.setValueAtTime(440, this.audioContext.currentTime);
+        gainNode.gain.setValueAtTime(0, this.audioContext.currentTime); // Silent
+        
+        oscillator.start();
+        oscillator.stop(this.audioContext.currentTime + 0.01);
+        
+        oscillator.onended = () => {
+          console.log('iOS audio unlocked successfully');
+          resolve();
+        };
+        
+        // Fallback timeout
+        setTimeout(resolve, 100);
+      } catch (error) {
+        console.error('Failed to unlock iOS audio:', error);
+        resolve();
+      }
+    });
+  }
+
+  // Test sound playback (for testing purposes)
+  public async testSoundPlayback(): Promise<boolean> {
+    try {
+      console.log('Testing sound playback...');
+      
+      // Initialize audio if needed
+      await this.initializeAudioWithUserInteraction();
+      
+      // Play test sound
+      await this.playAlarmSound();
+      
+      console.log('Sound test completed successfully');
+      return true;
+    } catch (error) {
+      console.error('Sound test failed:', error);
+      return false;
     }
   }
 
@@ -659,31 +748,6 @@ export class NotificationManager {
   // Check if notifications are supported
   public static isSupported(): boolean {
     return 'Notification' in window;
-  }
-
-  // Initialize audio context with user interaction (required for iOS)
-  public async initializeAudioWithUserInteraction(): Promise<void> {
-    try {
-      if (this.audioContext && this.audioContext.state === 'suspended') {
-        await this.audioContext.resume();
-        console.log('Audio context resumed after user interaction');
-      }
-      
-      // Play a silent sound to enable audio for iOS
-      if (this.isIOS && this.alarmSound) {
-        this.alarmSound.volume = 0;
-        const playPromise = this.alarmSound.play();
-        if (playPromise) {
-          playPromise.then(() => {
-            this.alarmSound!.pause();
-            this.alarmSound!.volume = 1.0;
-            this.alarmSound!.currentTime = 0;
-          }).catch(console.error);
-        }
-      }
-    } catch (error) {
-      console.error('Failed to initialize audio with user interaction:', error);
-    }
   }
 
   // Cleanup

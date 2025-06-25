@@ -182,36 +182,68 @@ export default function AppTestPage() {
       addResult('🔊 Testing Audio...')
       
       // Initialize audio with user interaction
-      await notificationManager.initializeAudioWithUserInteraction()
-      addResult('✅ Audio initialized successfully')
-      
-      // Create test notification to trigger sound
-      const testNotification = {
-        id: 'test-audio',
-        medicineId: 1,
-        medicineName: 'ทดสอบ',
-        title: 'ทดสอบเสียง',
-        message: 'ทดสอบเสียงแจ้งเตือน',
-        scheduledTime: new Date().toTimeString().substring(0, 5),
-        timeType: 'test',
-        isActive: true,
-        dosage: 1,
-        soundEnabled: true,
-        vibrationEnabled: false
+      const audioReady = await notificationManager.initializeAudioWithUserInteraction()
+      if (audioReady) {
+        addResult('✅ Audio initialized successfully')
+      } else {
+        addResult('⚠️ Audio initialization partial success')
       }
       
-      notificationManager.addNotification(testNotification)
-      addResult('🎵 Playing test sound')
-      
-      setTimeout(() => {
-        notificationManager.removeNotification('test-audio')
-        addResult('🔇 Sound test completed')
-      }, 3000)
+      // Test sound playback directly
+      const soundWorked = await notificationManager.testSoundPlayback()
+      if (soundWorked) {
+        addResult('🎵 Sound test completed successfully')
+      } else {
+        addResult('❌ Sound test failed')
+      }
       
     } catch (error) {
       addResult(`❌ Audio error: ${error}`)
     } finally {
       setIsTestingAudio(false)
+    }
+  }
+
+  const testAudioDirect = async () => {
+    try {
+      addResult('🎼 Testing Direct Audio...')
+      
+      // Create a simple beep using Web Audio API directly
+      if ('AudioContext' in window || 'webkitAudioContext' in window) {
+        const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+        const audioContext = new AudioContext();
+        
+        // Resume if suspended (iOS requirement)
+        if (audioContext.state === 'suspended') {
+          await audioContext.resume();
+          addResult('🔓 AudioContext resumed')
+        }
+        
+        // Create oscillator
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        
+        oscillator.frequency.setValueAtTime(880, audioContext.currentTime);
+        oscillator.type = 'sine';
+        
+        gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+        
+        oscillator.start();
+        oscillator.stop(audioContext.currentTime + 0.5);
+        
+        addResult('🎵 Direct audio test played')
+        
+        // Clean up
+        setTimeout(() => audioContext.close(), 1000);
+      } else {
+        addResult('❌ Web Audio API not supported')
+      }
+    } catch (error) {
+      addResult(`❌ Direct audio error: ${error}`)
     }
   }
 
@@ -265,6 +297,7 @@ export default function AppTestPage() {
     
     await testNotifications()
     await testAudio()
+    await testAudioDirect()
     testVibration()
     
     addResult('🏁 Notification tests completed!')
@@ -368,6 +401,13 @@ export default function AppTestPage() {
         </button>
         
         <button
+          onClick={testAudioDirect}
+          className="bg-orange-500 text-white rounded-xl p-2 text-xs font-medium"
+        >
+          🎼 Direct Audio
+        </button>
+        
+        <button
           onClick={testVibration}
           disabled={isTestingVibration}
           className="bg-purple-500 text-white rounded-xl p-2 text-xs font-medium disabled:opacity-50"
@@ -382,6 +422,19 @@ export default function AppTestPage() {
           🗑️ Clear Results
         </button>
       </div>
+
+      {/* iOS Audio Warning */}
+      {deviceInfo.isIOS && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 mt-4">
+          <div className="flex items-start gap-2">
+            <span className="text-yellow-500 text-lg">⚠️</span>
+            <div className="text-xs text-yellow-800">
+              <p className="font-semibold mb-1">สำหรับ iOS:</p>
+              <p>เสียงต้องการการกดปุ่มของผู้ใช้ก่อน กรุณากดปุ่มทดสอบเสียงเพื่อเปิดใช้งาน</p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 
