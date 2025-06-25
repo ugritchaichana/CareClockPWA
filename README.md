@@ -33,7 +33,7 @@ npm install
 2. **ตั้งค่า Environment Variables**
 สร้างไฟล์ `.env.local` และเพิ่ม:
 ```env
-MONGODB_URI=mongodb://localhost:27017
+DATABASE_URL=postgresql://username:password@host:port/database
 MONGODB_DB=careclock
 NEXT_PUBLIC_APP_NAME=CareClock
 NEXT_PUBLIC_APP_VERSION=1.0.0
@@ -59,7 +59,7 @@ npm run lint       # Run ESLint
 1. Push โค้ดไปยัง GitHub
 2. ไปที่ [vercel.com](https://vercel.com)
 3. เชื่อมต่อกับ GitHub repository
-4. เพิ่ม Environment Variable: `MONGODB_URI`
+4. เพิ่ม Environment Variable: `DATABASE_URL`
 5. Deploy!
 
 ### ทางเลือกอื่น:
@@ -82,7 +82,7 @@ npx vercel
 ### MongoDB Atlas Setup สำหรับ Production:
 1. **Network Access** → Add IP → `0.0.0.0/0` (Allow all)
 2. **Database Access** → Ensure readWrite permissions
-3. **Copy connection string** for `MONGODB_URI`
+3. **Copy connection string** for `DATABASE_URL`
 
 ## 📁 โครงสร้างโปรเจค
 npm run build      # Production build

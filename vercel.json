@@ -1,13 +1,3 @@
 {
-  "buildCommand": "prisma generate && pnpm build",
-  "installCommand": "pnpm install",
-  "framework": "nextjs",
-  "functions": {
-    "app/api/**/*.ts": {
-      "runtime": "nodejs18.x"
-    }
-  },
-  "env": {
-    "MONGODB_URI": "mongodb+srv://ugritbooth:Duw6N7niwQfmAwvB@cluster0.46indno.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
-  }
+  "framework": "nextjs"
 }
