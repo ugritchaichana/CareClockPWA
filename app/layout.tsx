@@ -15,7 +15,7 @@ export const metadata: Metadata = {
   title: 'CareClock - แอพแจ้งเตือนกินยา',
   description: 'แอพพลิเคชันแจ้งเตือนกินยา - ทำงานได้แม้ offline พร้อมเสียงปลุก',
   manifest: '/manifest.json',
-  keywords: ['healthcare', 'mobile', 'pwa', 'care', 'clock', 'medicine', 'reminder', 'กินยา', 'แจ้งเตือน'],
+  keywords: ['healthcare', 'mobile', 'care', 'clock', 'medicine', 'reminder', 'กินยา', 'แจ้งเตือน'],
   authors: [{ name: 'CareClock Team' }],
   creator: 'CareClock',
   publisher: 'CareClock',

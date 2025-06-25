@@ -1,5 +1,5 @@
 -- ========================================
--- CareClockPWA Database Setup Script
+-- CareClock Database Setup Script
 -- ========================================
 -- This script creates all necessary tables for the medicine management system
 -- Run this script in Supabase SQL Editor

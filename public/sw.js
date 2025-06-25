@@ -79,7 +79,7 @@ self.addEventListener('push', (event) => {
   };
 
   event.waitUntil(
-    self.registration.showNotification('CareClockPWA - แจ้งเตือนกินยา', options)
+    self.registration.showNotification('CareClock - แจ้งเตือนกินยา', options)
   );
 });
 
@@ -115,7 +115,7 @@ self.addEventListener('notificationclick', (event) => {
   } else if (event.action === 'snooze') {
     // Snooze for 5 minutes
     setTimeout(() => {
-      self.registration.showNotification('CareClockPWA - แจ้งเตือนกินยา (เลื่อน)', {
+      self.registration.showNotification('CareClock - แจ้งเตือนกินยา (เลื่อน)', {
         body: 'เวลากินยาแล้ว! (เลื่อนมา 5 นาที)',
         icon: '/asset/CareClockLOGO.PNG',
         badge: '/asset/CareClockLOGO.PNG',
