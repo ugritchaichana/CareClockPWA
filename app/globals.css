@@ -82,3 +82,34 @@ button, input, select, textarea {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Toast notification animations */
+@keyframes fade-in-down {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, -20px, 0);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes fade-out-up {
+  0% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(0, -20px, 0);
+  }
+}
+
+.animate-fade-in-down {
+  animation: fade-in-down 0.3s ease-out;
+}
+
+.animate-fade-out-up {
+  animation: fade-out-up 0.3s ease-in;
+}

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import LoadingButton from '@/components/LoadingButton'
+import Toast, { useToast } from '@/components/Toast'
 import { localStorageService } from '../../../lib/localStorage'
 import { notificationManager, NotificationManager } from '../../../lib/notificationManager'
 import { AlarmAudio, AlarmTypes, AlarmType } from '../../../lib/audio'
@@ -89,6 +90,7 @@ export default function Notification() {
   }>({})
   const [editingNotification, setEditingNotification] = useState<NotificationData | null>(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
   
   // PWA Notification states
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default')
@@ -97,27 +99,11 @@ export default function Notification() {
   const [soundEnabled, setSoundEnabled] = useState(true)
   const [vibrationEnabled, setVibrationEnabled] = useState(true)
   
-  // Toast notification state
-  const [toast, setToast] = useState<{
-    show: boolean
-    message: string
-    type: 'success' | 'error' | 'info'
-  }>({
-    show: false,
-    message: '',
-    type: 'info'
-  })
+  // Toast notification
+  const { toast, showToast } = useToast()
   
   // Track which notifications have been taken today
   const [takenToday, setTakenToday] = useState<Set<number>>(new Set())
-
-  // Show toast notification
-  const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
-    setToast({ show: true, message, type })
-    setTimeout(() => {
-      setToast(prev => ({ ...prev, show: false }))
-    }, 3000)
-  }
 
   useEffect(() => {
     loadNotifications()
@@ -225,12 +211,24 @@ export default function Notification() {
 
   // Helper function to format DateTime to HH:mm
   const formatTimeToHHMM = (dateTime: string) => {
-    const date = new Date(dateTime)
-    return date.toLocaleTimeString('en-GB', { 
-      hour: '2-digit', 
-      minute: '2-digit',
-      hour12: false 
-    })
+    try {
+      const date = new Date(dateTime)
+      // Check if the date is valid
+      if (isNaN(date.getTime())) {
+        console.error('Invalid date:', dateTime)
+        return '00:00'
+      }
+      
+      return date.toLocaleTimeString('th-TH', { 
+        hour: '2-digit', 
+        minute: '2-digit',
+        hour12: false,
+        timeZone: 'Asia/Bangkok' // Ensure Thailand timezone
+      })
+    } catch (error) {
+      console.error('Error formatting time:', error)
+      return '00:00'
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -257,8 +255,8 @@ export default function Notification() {
       const timeValue = scheduledTimes[timeKey]
       if (!timeValue || timeValue.trim() === '') return false
       
-      // Validate time format (HH:mm)
-      const timePattern = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/
+      // Validate time format (HH:mm) - รองรับรูปแบบ H:mm และ HH:mm (0-23 ชั่วโมง, 0-59 นาที)
+      const timePattern = /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/
       return timePattern.test(timeValue)
     })
 
@@ -281,20 +279,25 @@ export default function Notification() {
       const groupId = `group_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
       const notifications = Object.entries(scheduledTimes)
         .filter(([timeType, time]) => time && time.trim() !== '' && selectedMed.consumptionTimes[timeType as keyof ConsumptionTimes])
-        .map(([timeType, time]) => ({
-          phoneNumber: patientData.phoneNumber,
-          medicineId: parseInt(selectedMedicine),
-          title: title, // Use original title
-          message: message || null,
-          scheduledTime: time, // Send time as HH:mm string format
-          timeType,
-          groupId, // Add group ID for grouping notifications
-          isActive: true
-        }))
+        .map(([timeType, time]) => {
+          return {
+            phoneNumber: patientData.phoneNumber,
+            medicineId: parseInt(selectedMedicine),
+            title: title, // Use original title
+            message: message || null,
+            scheduledTime: time, // Send original time string (HH:mm format)
+            timeType,
+            groupId, // Add group ID for grouping notifications
+            isActive: true
+          }
+        })
 
       // Send each notification
       for (const notificationData of notifications) {
-        console.log('Sending notification data:', notificationData) // Debug log
+        console.log('Sending notification data:', {
+          ...notificationData,
+          scheduledTimeOriginal: Object.entries(scheduledTimes).find(([type]) => type === notificationData.timeType)?.[1]
+        }) // Debug log
         
         const response = await fetch('/api/notifications', {
           method: editingNotification ? 'PUT' : 'POST',
@@ -309,6 +312,9 @@ export default function Notification() {
           console.error('API Error:', errorResult) // Debug log
           throw new Error(errorResult.error || errorResult.message || 'เกิดข้อผิดพลาดในการบันทึกการแจ้งเตือน')
         }
+
+        const result = await response.json()
+        console.log('API Response:', result) // Debug log
       }
 
       // Reload notifications
@@ -464,13 +470,21 @@ export default function Notification() {
         // Update notification manager
         if (!currentStatus) {
           // Enable notification - add to notification manager
+          const scheduledDate = new Date(notification.scheduledTime)
+          const timeString = scheduledDate.toLocaleTimeString('th-TH', {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false,
+            timeZone: 'Asia/Bangkok'
+          })
+          
           notificationManager.addNotification({
             id: `server-${notification.id}`,
             medicineId: notification.medicineId,
             medicineName: notification.medicine.medicineName,
             title: notification.title,
             message: notification.message || `เวลากินยา ${notification.medicine.medicineName}`,
-            scheduledTime: formatTimeToHHMM(notification.scheduledTime),
+            scheduledTime: timeString,
             timeType: notification.timeType,
             isActive: true,
             dosage: notification.medicine.dosage,
@@ -503,6 +517,7 @@ export default function Notification() {
 
   const handleDeleteNotificationGroup = async (groupId: string) => {
     try {
+      setIsDeleting(true) // Start loading state
       const patientData = localStorageService.getItem<PatientData>('patient-data')
       
       if (!patientData?.phoneNumber) {
@@ -543,6 +558,8 @@ export default function Notification() {
       console.error('Error deleting notification group:', error)
       showToast(error instanceof Error ? error.message : 'เกิดข้อผิดพลาดในการลบการแจ้งเตือน', 'error')
       setShowDeleteConfirm(null)
+    } finally {
+      setIsDeleting(false) // End loading state
     }
   }
 
@@ -652,7 +669,7 @@ export default function Notification() {
                     />
                   </div>
 
-                  {/* Dynamic Time Inputs - Mobile Optimized */}
+                          {/* Dynamic Time Inputs - Mobile Optimized */}
                   {selectedMedicine && medicines.find(med => med.id === parseInt(selectedMedicine)) && (
                     <div>
                       <label className="label">
@@ -674,19 +691,29 @@ export default function Notification() {
                                   <input 
                                     type="time" 
                                     value={scheduledTimes[timeType as keyof typeof scheduledTimes] || ''}
-                                    onChange={(e) => setScheduledTimes(prev => ({
-                                      ...prev,
-                                      [timeType]: e.target.value
-                                    }))}
+                                    onChange={(e) => {
+                                      console.log(`Setting ${timeType} to ${e.target.value}`) // Debug log
+                                      setScheduledTimes(prev => ({
+                                        ...prev,
+                                        [timeType]: e.target.value
+                                      }))
+                                    }}
                                     className="input input-bordered bg-white text-gray-800 font-medium w-full text-base"
                                     style={{ 
                                       borderColor: themeColors.pink,
                                       minHeight: '48px' // Touch-friendly height
                                     }}
+                                    step="60" // Only allow full minutes
                                     required
                                   />
                                 </div>
                               </div>
+                              {/* Show current time preview */}
+                              {scheduledTimes[timeType as keyof typeof scheduledTimes] && (
+                                <div className="mt-2 text-xs text-gray-600">
+                                  เวลาที่เลือก: {scheduledTimes[timeType as keyof typeof scheduledTimes]}
+                                </div>
+                              )}
                             </div>
                           ))}
                       </div>
@@ -1038,22 +1065,29 @@ export default function Notification() {
                 
                 {/* Action Buttons - Mobile Stack */}
                 <div className="flex flex-col gap-3">
-                  <button 
+                  <LoadingButton
                     onClick={() => handleDeleteNotificationGroup(showDeleteConfirm)}
                     className="w-full py-3 rounded-2xl text-white font-semibold text-sm transition-all duration-200 active:scale-95"
                     style={{ 
-                      background: 'linear-gradient(135deg, #f87171, #ef4444)',
-                      minHeight: '48px'
+                      background: isDeleting 
+                        ? 'linear-gradient(135deg, #9ca3af, #6b7280)' 
+                        : 'linear-gradient(135deg, #f87171, #ef4444)',
+                      minHeight: '48px',
+                      border: 'none'
                     }}
+                    isLoading={isDeleting}
+                    loadingText="กำลังลบ..."
+                    disabled={isDeleting}
                   >
                     <span className="flex items-center justify-center gap-2">
                       <span>🗑️</span>
                       <span>ลบทั้งกลุ่ม</span>
                     </span>
-                  </button>
+                  </LoadingButton>
                   <button 
                     onClick={() => setShowDeleteConfirm(null)}
-                    className="w-full py-3 rounded-2xl font-semibold text-sm border-2 transition-all duration-200 active:scale-95"
+                    disabled={isDeleting}
+                    className="w-full py-3 rounded-2xl font-semibold text-sm border-2 transition-all duration-200 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                     style={{ 
                       borderColor: themeColors.textSecondary,
                       color: themeColors.textSecondary,
@@ -1069,33 +1103,8 @@ export default function Notification() {
           </div>
         )}
         
-        {/* Toast Notification - Mobile Optimized */}
-        {toast.show && (
-          <div className="fixed top-4 left-4 right-4 z-50 animate-bounce">
-            <div className={`alert shadow-xl rounded-2xl border-2 ${
-              toast.type === 'success' 
-                ? 'bg-gradient-to-r from-green-400 to-green-500 text-white border-green-300' 
-                : toast.type === 'error'
-                ? 'bg-gradient-to-r from-red-400 to-red-500 text-white border-red-300'
-                : 'bg-gradient-to-r from-blue-400 to-blue-500 text-white border-blue-300'
-            }`}>
-              <div className="flex items-center gap-3 w-full">
-                <div className="text-xl">
-                  {toast.type === 'success' ? '✅' : toast.type === 'error' ? '❌' : 'ℹ️'}
-                </div>
-                <div className="flex-1">
-                  <p className="font-medium text-sm leading-tight">{toast.message}</p>
-                </div>
-                <button 
-                  onClick={() => setToast(prev => ({ ...prev, show: false }))}
-                  className="btn btn-ghost btn-sm text-white hover:bg-white/20 min-h-0 h-8 w-8 p-0 rounded-full"
-                >
-                  ✕
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        {/* Toast Notification */}
+        <Toast toast={toast} onClose={() => {}} />
       </div>
     </div>
   )

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { localStorageService } from '../../../lib/localStorage'
 import { useRouter } from 'next/navigation'
 import LoadingButton from '@/components/LoadingButton'
+import Toast, { useToast } from '@/components/Toast'
 
 interface PatientData {
   prefix: string
@@ -77,24 +78,8 @@ export default function UserInfo() {
     drugAllergy: '',
   })
 
-  // Toast notification state
-  const [toast, setToast] = useState<{
-    show: boolean
-    message: string
-    type: 'success' | 'error' | 'info'
-  }>({
-    show: false,
-    message: '',
-    type: 'info'
-  })
-
-  // Show toast notification
-  const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
-    setToast({ show: true, message, type })
-    setTimeout(() => {
-      setToast(prev => ({ ...prev, show: false }))
-    }, 3000)
-  }
+  // Toast notification
+  const { toast, showToast } = useToast()
 
   const formatPhoneNumber = (value: string) => {
     if (!value) return value;
@@ -1064,34 +1049,7 @@ export default function UserInfo() {
       )}
 
       {/* Toast Notification */}
-      {toast.show && (
-        <div className="fixed top-4 left-4 right-4 z-50 animate-bounce">
-          <div 
-            className={`shadow-xl rounded-2xl border-2 p-4 ${
-              toast.type === 'success' 
-                ? 'bg-gradient-to-r from-green-400 to-green-500 text-white border-green-300' 
-                : toast.type === 'error'
-                ? 'bg-gradient-to-r from-red-400 to-red-500 text-white border-red-300'
-                : 'bg-gradient-to-r from-blue-400 to-blue-500 text-white border-blue-300'
-            }`}
-          >
-            <div className="flex items-center gap-3">
-              <div className="text-xl">
-                {toast.type === 'success' ? '✅' : toast.type === 'error' ? '❌' : 'ℹ️'}
-              </div>
-              <div className="flex-1">
-                <p className="font-medium text-sm leading-tight">{toast.message}</p>
-              </div>
-              <button 
-                onClick={() => setToast(prev => ({ ...prev, show: false }))}
-                className="w-6 h-6 rounded-full flex items-center justify-center text-white hover:bg-white/20 transition-all duration-200"
-              >
-                ✕
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <Toast toast={toast} onClose={() => {}} />
     </div>
   )
 }

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import LoadingButton from '@/components/LoadingButton'
+import Toast, { useToast } from '@/components/Toast'
 import { localStorageService } from '../../../lib/localStorage'
 import LoadingSpinner from '@/components/LoadingSpinner'
 
@@ -72,25 +73,10 @@ export default function Medicine() {
   const [isLoadingMedicines, setIsLoadingMedicines] = useState(true)
   const [editingMedicine, setEditingMedicine] = useState<MedicineData | null>(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
 
-  // Toast notification state
-  const [toast, setToast] = useState<{
-    show: boolean
-    message: string
-    type: 'success' | 'error' | 'info'
-  }>({
-    show: false,
-    message: '',
-    type: 'info'
-  })
-
-  // Show toast notification
-  const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
-    setToast({ show: true, message, type })
-    setTimeout(() => {
-      setToast(prev => ({ ...prev, show: false }))
-    }, 3000)
-  }
+  // Toast notification
+  const { toast, showToast } = useToast()
 
   // Load medicines from database
   useEffect(() => {
@@ -263,6 +249,7 @@ export default function Medicine() {
   // Delete medicine
   const handleDeleteMedicine = async (medicineId: string) => {
     try {
+      setIsDeleting(true) // Start loading state
       const patientData = localStorageService.getItem<PatientData>('patient-data')
       if (!patientData?.phoneNumber) {
         showToast('ไม่พบข้อมูลผู้ใช้ กรุณาเข้าสู่ระบบก่อน', 'error')
@@ -281,10 +268,13 @@ export default function Medicine() {
       // Reload medicines list
       await loadMedicines()
       setShowDeleteConfirm(null)
+      showToast('🗑️ ลบยาสำเร็จแล้ว!', 'success')
       
     } catch (error) {
       console.error('Error deleting medicine:', error)
       showToast(error instanceof Error ? error.message : 'เกิดข้อผิดพลาดในการลบข้อมูล', 'error')
+    } finally {
+      setIsDeleting(false) // End loading state
     }
   }
 
@@ -695,16 +685,20 @@ export default function Medicine() {
 
                       {/* Action Buttons */}
                       <div className="flex gap-3 mt-6">
-                        <button 
+                        <LoadingButton
                           onClick={() => handleEditMedicine(medicine)}
+                          isLoading={false}
                           className="flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-2xl text-white font-semibold shadow-md hover:shadow-lg transition-all duration-200 active:scale-95"
-                          style={{ backgroundColor: themeColors.pink }}
+                          style={{ 
+                            backgroundColor: themeColors.pink,
+                            border: 'none'
+                          }}
                         >
                           <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                           </svg>
                           <span>แก้ไข</span>
-                        </button>
+                        </LoadingButton>
                         <button 
                           onClick={() => setShowDeleteConfirm(medicine.id)}
                           className="flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-2xl font-semibold shadow-md hover:shadow-lg transition-all duration-200 active:scale-95"
@@ -751,7 +745,8 @@ export default function Medicine() {
               <div className="flex gap-3 mt-6">
                 <button 
                   onClick={() => setShowDeleteConfirm(null)}
-                  className="flex-1 py-3 px-4 rounded-2xl font-semibold shadow-md hover:shadow-lg transition-all duration-200 active:scale-95"
+                  disabled={isDeleting}
+                  className="flex-1 py-3 px-4 rounded-2xl font-semibold shadow-md hover:shadow-lg transition-all duration-200 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                   style={{ 
                     backgroundColor: 'rgba(255, 255, 255, 0.9)',
                     color: themeColors.textPrimary,
@@ -761,47 +756,26 @@ export default function Medicine() {
                 >
                   ยกเลิก
                 </button>
-                <button 
+                <LoadingButton
                   onClick={() => handleDeleteMedicine(showDeleteConfirm!)}
+                  isLoading={isDeleting}
+                  loadingText="กำลังลบ..."
+                  disabled={isDeleting}
                   className="flex-1 py-3 px-4 rounded-2xl text-white font-semibold shadow-md hover:shadow-lg transition-all duration-200 active:scale-95"
-                  style={{ backgroundColor: '#ef4444' }}
+                  style={{ 
+                    backgroundColor: isDeleting ? '#9ca3af' : '#ef4444',
+                    border: 'none'
+                  }}
                 >
                   ลบยา
-                </button>
+                </LoadingButton>
               </div>
             </div>
           </div>
         )}
 
-        {/* Toast Notification - Mobile First Design */}
-        {toast.show && (
-          <div className="fixed top-4 left-4 right-4 z-50 flex justify-center animate-bounce">
-            <div className={`max-w-sm w-full shadow-2xl rounded-2xl border-2 backdrop-blur-sm ${
-              toast.type === 'success' 
-                ? 'bg-gradient-to-r from-green-400 to-green-500 text-white border-green-300' 
-                : toast.type === 'error'
-                ? 'bg-gradient-to-r from-red-400 to-red-500 text-white border-red-300'
-                : 'bg-gradient-to-r from-blue-400 to-blue-500 text-white border-blue-300'
-            }`}>
-              <div className="flex items-center gap-3 p-4">
-                <div className="text-2xl flex-shrink-0">
-                  {toast.type === 'success' ? '✅' : toast.type === 'error' ? '❌' : 'ℹ️'}
-                </div>
-                <div className="flex-1">
-                  <p className="font-semibold text-base">{toast.message}</p>
-                </div>
-                <button 
-                  onClick={() => setToast(prev => ({ ...prev, show: false }))}
-                  className="flex-shrink-0 p-1 rounded-full hover:bg-white/20 transition-all duration-200 active:scale-95"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        {/* Toast Notification */}
+        <Toast toast={toast} onClose={() => {}} />
       </div>
     </div>
   )
