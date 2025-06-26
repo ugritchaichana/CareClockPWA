@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import LoadingButton from '@/components/LoadingButton'
 import Toast, { useToast } from '@/components/Toast'
+import NotificationModal, { NotificationModalData } from '@/components/NotificationModal'
 import { localStorageService } from '../../../lib/localStorage'
 import { notificationManager, NotificationManager } from '../../../lib/notificationManager'
 import { AlarmAudio, AlarmTypes, AlarmType } from '../../../lib/audio'
@@ -106,12 +107,64 @@ export default function Notification() {
   // Track which notifications have been taken today
   const [takenToday, setTakenToday] = useState<Set<number>>(new Set())
 
+  // Modal states
+  const [showNotificationModal, setShowNotificationModal] = useState(false)
+  const [modalData, setModalData] = useState<NotificationModalData | null>(null)
+
   useEffect(() => {
     loadNotifications()
     loadMedicines()
     checkNotificationPermission()
     syncWithNotificationManager()
+    setupNotificationCallbacks()
   }, [])
+
+  const setupNotificationCallbacks = () => {
+    // Set up callbacks for notification manager to show modal
+    notificationManager.setCallbacks({
+      onShowModal: (data) => {
+        console.log('Showing modal for:', data)
+        setModalData({
+          medicineId: data.medicineId,
+          medicineName: data.medicineName,
+          dosage: data.dosage,
+          medicineImageUrl: data.medicineImageUrl,
+          title: data.title,
+          message: data.message,
+          timeType: data.timeType,
+          scheduledTime: data.scheduledTime
+        })
+        setShowNotificationModal(true)
+        
+        // Initialize audio for iOS compatibility when user opens modal
+        notificationManager.initializeAudioWithUserInteraction()
+      },
+      onNotificationClick: (notificationId) => {
+        console.log('Notification clicked:', notificationId)
+        // Find the notification that was clicked and show modal
+        const clickedNotification = notifications.find(n => 
+          `server-${n.id}` === notificationId || n.id.toString() === notificationId
+        )
+        
+        if (clickedNotification) {
+          setModalData({
+            medicineId: clickedNotification.medicineId,
+            medicineName: clickedNotification.medicine.medicineName,
+            dosage: clickedNotification.medicine.dosage,
+            medicineImageUrl: clickedNotification.medicine.medicineImageUrl,
+            title: clickedNotification.title,
+            message: clickedNotification.message,
+            timeType: clickedNotification.timeType,
+            scheduledTime: clickedNotification.scheduledTime
+          })
+          setShowNotificationModal(true)
+          
+          // Initialize audio when user enters from notification click
+          notificationManager.initializeAudioWithUserInteraction()
+        }
+      }
+    })
+  }
 
   const checkNotificationPermission = async () => {
     if (NotificationManager.isSupported()) {
@@ -332,6 +385,59 @@ export default function Notification() {
     } finally {
       setIsLoading(false)
     }
+  }
+
+  // Handle modal actions
+  const handleModalTake = async () => {
+    if (!modalData) return
+    
+    // Record the action through notification manager
+    const success = await notificationManager.handleNotificationAction(
+      `${modalData.medicineId}-${modalData.timeType}`,
+      'taken',
+      modalData.medicineId
+    )
+    
+    if (success) {
+      showToast('✅ บันทึกการกินยาเรียบร้อยแล้ว', 'success')
+      
+      // Add to taken today set
+      setTakenToday(prev => {
+        const newSet = new Set(prev)
+        newSet.add(modalData.medicineId)
+        return newSet
+      })
+    } else {
+      showToast('❌ ไม่สามารถบันทึกการกินยาได้', 'error')
+    }
+    
+    setShowNotificationModal(false)
+    setModalData(null)
+  }
+
+  const handleModalSkip = async () => {
+    if (!modalData) return
+    
+    // Record the action through notification manager
+    const success = await notificationManager.handleNotificationAction(
+      `${modalData.medicineId}-${modalData.timeType}`,
+      'skipped',
+      modalData.medicineId
+    )
+    
+    if (success) {
+      showToast('⏭️ บันทึกการข้ามการกินยาเรียบร้อยแล้ว', 'info')
+    } else {
+      showToast('❌ ไม่สามารถบันทึกการข้ามการกินยาได้', 'error')
+    }
+    
+    setShowNotificationModal(false)
+    setModalData(null)
+  }
+
+  const handleModalDismiss = () => {
+    setShowNotificationModal(false)
+    setModalData(null)
   }
 
   // Helper function to get time type label in Thai
@@ -1087,6 +1193,17 @@ export default function Notification() {
             </div>
           </div>
         )}
+        
+        {/* Notification Modal */}
+        <NotificationModal
+          isOpen={showNotificationModal}
+          data={modalData}
+          onTake={handleModalTake}
+          onSkip={handleModalSkip}
+          onDismiss={handleModalDismiss}
+          soundEnabled={soundEnabled}
+          vibrationEnabled={vibrationEnabled}
+        />
         
         {/* Toast Notification */}
         <Toast toast={toast} onClose={() => {}} />
