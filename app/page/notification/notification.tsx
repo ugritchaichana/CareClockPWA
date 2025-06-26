@@ -699,15 +699,6 @@ export default function Notification() {
                                   />
                                 </div>
                               </div>
-                              {/* Show current time preview */}
-                              {scheduledTimes[timeType as keyof typeof scheduledTimes] && (
-                                <div className="mt-2 text-xs text-gray-600">
-                                  <div>เวลาที่เลือก: {scheduledTimes[timeType as keyof typeof scheduledTimes]}</div>
-                                  <div className="text-gray-500">
-                                    Timezone: {THAILAND_TIMEZONE} (เวลาไทย)
-                                  </div>
-                                </div>
-                              )}
                             </div>
                           ))}
                       </div>
