@@ -72,8 +72,16 @@ export async function POST(request: NextRequest) {
       message, 
       scheduledTime, 
       timeType,
-      groupId 
+      groupId,
+      timezone 
     } = body
+
+    console.log('Received notification data:', {
+      scheduledTime,
+      timeType,
+      timezone: timezone || 'Thailand (all users)',
+      userAgent: request.headers.get('user-agent')
+    })
 
     if (!phoneNumber || !medicineId || !title || !scheduledTime || !timeType) {
       return NextResponse.json(
@@ -107,10 +115,10 @@ export async function POST(request: NextRequest) {
         { error: 'Medicine not found or does not belong to user' },
         { status: 404 }
       )
-    }    // Convert time string (HH:mm) to DateTime
-    // Create a date with today's date and the specified time
+    }    // Handle timezone and convert scheduledTime
     let scheduledDateTime: Date
     try {
+      // Simple approach: Always treat input as HH:mm in user's local timezone
       const today = new Date()
       const [hours, minutes] = scheduledTime.split(':').map(Number)
       
@@ -122,11 +130,27 @@ export async function POST(request: NextRequest) {
         )
       }
       
+      // Create date object - this will be in server's timezone but that's okay
+      // because we'll always format it back with the user's timezone when displaying
       scheduledDateTime = new Date(today.getFullYear(), today.getMonth(), today.getDate(), hours, minutes, 0)
+      
+      console.log('Time processing:', {
+        input: scheduledTime,
+        parsed: { hours, minutes },
+        created: scheduledDateTime,
+        timezone: 'Asia/Bangkok (Thailand)',
+        serverTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+      })
+      
+      // Validate the final date
+      if (isNaN(scheduledDateTime.getTime())) {
+        throw new Error('Invalid date created')
+      }
+      
     } catch (timeError) {
-      console.error('Error parsing scheduled time:', timeError)
+      console.error('Error parsing scheduled time:', timeError, 'Input:', scheduledTime)
       return NextResponse.json(
-        { error: 'Invalid time format. Please use HH:mm format (e.g., 08:30)' },
+        { error: 'Invalid time format. Please provide a valid time.' },
         { status: 400 }
       )
     }
@@ -142,6 +166,15 @@ export async function POST(request: NextRequest) {
         timeType,
         groupId: groupId || null // Add groupId to database
       }
+    })
+
+    console.log('Created notification:', {
+      id: notification.id,
+      title: notification.title,
+      scheduledTime: notification.scheduledTime,
+      scheduledTimeFormatted: notification.scheduledTime.toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' }),
+      timeType: notification.timeType,
+      note: 'All users are in Thailand timezone'
     })
 
     return NextResponse.json({

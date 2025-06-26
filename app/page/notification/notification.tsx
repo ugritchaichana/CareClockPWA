@@ -7,6 +7,7 @@ import Toast, { useToast } from '@/components/Toast'
 import { localStorageService } from '../../../lib/localStorage'
 import { notificationManager, NotificationManager } from '../../../lib/notificationManager'
 import { AlarmAudio, AlarmTypes, AlarmType } from '../../../lib/audio'
+import { formatTimeToHHMM, THAILAND_TIMEZONE } from '../../../lib/timezone'
 
 // Define interfaces
 interface ConsumptionTimes {
@@ -209,26 +210,9 @@ export default function Notification() {
     setEditingNotification(null)
   }
 
-  // Helper function to format DateTime to HH:mm
-  const formatTimeToHHMM = (dateTime: string) => {
-    try {
-      const date = new Date(dateTime)
-      // Check if the date is valid
-      if (isNaN(date.getTime())) {
-        console.error('Invalid date:', dateTime)
-        return '00:00'
-      }
-      
-      return date.toLocaleTimeString('th-TH', { 
-        hour: '2-digit', 
-        minute: '2-digit',
-        hour12: false,
-        timeZone: 'Asia/Bangkok' // Ensure Thailand timezone
-      })
-    } catch (error) {
-      console.error('Error formatting time:', error)
-      return '00:00'
-    }
+  // Helper function to format DateTime to HH:mm (use Thailand timezone)
+  const formatTimeToHHMMLocal = (dateTime: string) => {
+    return formatTimeToHHMM(dateTime, THAILAND_TIMEZONE)
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -255,7 +239,6 @@ export default function Notification() {
       const timeValue = scheduledTimes[timeKey]
       if (!timeValue || timeValue.trim() === '') return false
       
-      // Validate time format (HH:mm) - รองรับรูปแบบ H:mm และ HH:mm (0-23 ชั่วโมง, 0-59 นาที)
       const timePattern = /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/
       return timePattern.test(timeValue)
     })
@@ -280,15 +263,22 @@ export default function Notification() {
       const notifications = Object.entries(scheduledTimes)
         .filter(([timeType, time]) => time && time.trim() !== '' && selectedMed.consumptionTimes[timeType as keyof ConsumptionTimes])
         .map(([timeType, time]) => {
+          console.log('Processing time:', {
+            timeType,
+            originalTime: time,
+            timezone: THAILAND_TIMEZONE
+          }) // Debug log
+          
           return {
             phoneNumber: patientData.phoneNumber,
             medicineId: parseInt(selectedMedicine),
             title: title, // Use original title
             message: message || null,
-            scheduledTime: time, // Send original time string (HH:mm format)
+            scheduledTime: time, // Send as simple HH:mm string
             timeType,
             groupId, // Add group ID for grouping notifications
-            isActive: true
+            isActive: true,
+            timezone: THAILAND_TIMEZONE // All users are in Thailand
           }
         })
 
@@ -296,7 +286,8 @@ export default function Notification() {
       for (const notificationData of notifications) {
         console.log('Sending notification data:', {
           ...notificationData,
-          scheduledTimeOriginal: Object.entries(scheduledTimes).find(([type]) => type === notificationData.timeType)?.[1]
+          originalTimeInput: Object.entries(scheduledTimes).find(([type]) => type === notificationData.timeType)?.[1],
+          scheduledTimeFormatted: new Date(notificationData.scheduledTime).toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' })
         }) // Debug log
         
         const response = await fetch('/api/notifications', {
@@ -711,7 +702,10 @@ export default function Notification() {
                               {/* Show current time preview */}
                               {scheduledTimes[timeType as keyof typeof scheduledTimes] && (
                                 <div className="mt-2 text-xs text-gray-600">
-                                  เวลาที่เลือก: {scheduledTimes[timeType as keyof typeof scheduledTimes]}
+                                  <div>เวลาที่เลือก: {scheduledTimes[timeType as keyof typeof scheduledTimes]}</div>
+                                  <div className="text-gray-500">
+                                    Timezone: {THAILAND_TIMEZONE} (เวลาไทย)
+                                  </div>
                                 </div>
                               )}
                             </div>
@@ -913,7 +907,7 @@ export default function Notification() {
                                 className="text-xs px-2.5 py-1.5 rounded-full font-medium" 
                                 style={{ backgroundColor: themeColors.lightBlue, color: themeColors.textPrimary }}
                               >
-                                {getTimeTypeLabel(notification.timeType)} {formatTimeToHHMM(notification.scheduledTime)}
+                                {getTimeTypeLabel(notification.timeType)} {formatTimeToHHMMLocal(notification.scheduledTime)}
                               </span>
                             ))}
                         </div>
@@ -1055,7 +1049,7 @@ export default function Notification() {
                         <p className="font-medium mb-1">ช่วงเวลาที่จะถูกลบ:</p>
                         {groupToDelete.notifications.map((notif) => (
                           <p key={notif.id} className="text-xs">
-                            • ⏰ {formatTimeToHHMM(notif.scheduledTime)} ({formatTimeType(notif.timeType)})
+                            • ⏰ {formatTimeToHHMMLocal(notif.scheduledTime)} ({formatTimeType(notif.timeType)})
                           </p>
                         ))}
                       </div>
