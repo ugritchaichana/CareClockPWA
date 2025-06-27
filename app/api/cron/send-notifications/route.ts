@@ -1,11 +1,9 @@
-// app/api/cron/send-notifications/route.ts
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import webpush, { PushSubscription } from 'web-push'; // แก้ไขการ import เล็กน้อย
+import webpush from 'web-push';
 
-// ตั้งค่า web-push ด้วย VAPID keys ของคุณ
 webpush.setVapidDetails(
-  'mailto:support@careclock.com', // ใช้อีเมลของคุณ หรืออีเมลสำหรับ support
+  process.env.NEXT_PUBLIC_APP_URL || 'https://care-clock.vercel.app',
   process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!,
   process.env.VAPID_PRIVATE_KEY!
 );
@@ -19,28 +17,23 @@ export async function GET(request: Request) {
 
     try {
         const now = new Date();
-        const currentHours = now.getUTCHours() + 7; // ปรับเป็นเวลาไทย (UTC+7)
-        const currentMinutes = now.getUTCMinutes();
+        const currentUTCHours = now.getUTCHours();
+        const currentUTCMinutes = now.getUTCMinutes();
         
-        // สร้างเวลาเป้าหมายโดยใช้ปี 1970 เพื่อเปรียบเทียบเฉพาะเวลา
-        // เนื่องจาก Prisma เก็บ @db.Time() เป็นเวลาแบบไม่มีวันที่
-        const targetTime = new Date(Date.UTC(1970, 0, 1, currentHours, currentMinutes, 0));
+        // สร้างเวลาเป้าหมายเป็น UTC และใช้วันที่ 1970-01-01 
+        // เพื่อให้ตรงกับข้อมูล @db.Time() ที่ Prisma บันทึกไว้ในฐานข้อมูล
+        const targetTimeUTC = new Date(Date.UTC(1970, 0, 1, currentUTCHours, currentUTCMinutes, 0));
 
         // ค้นหาการแจ้งเตือนทั้งหมดที่ถึงเวลาส่งในนาทีนี้
         const notificationsToSend = await prisma.medicineNotification.findMany({
             where: {
                 isActive: true,
-                scheduledTime: {
-                    // ใช้ gte และ lt เพื่อหาเวลาในช่วง 1 นาทีนั้น
-                    gte: new Date(Date.UTC(1970, 0, 1, currentHours, currentMinutes, 0)),
-                    lt: new Date(Date.UTC(1970, 0, 1, currentHours, currentMinutes + 1, 0))
-                }
+                scheduledTime: targetTimeUTC, // เปรียบเทียบเวลาแบบตรงๆ
             },
             include: {
                 patient: {
                     include: {
-                        // โค้ดส่วนนี้ถูกต้องเมื่อ Prisma Client ถูก generate ใหม่
-                        pushSubscriptions: true, 
+                        pushSubscriptions: true,
                     }
                 },
                 medicine: true
@@ -51,7 +44,7 @@ export async function GET(request: Request) {
             return NextResponse.json({ message: 'No notifications to send at this time.' });
         }
 
-        const sendPromises = notificationsToSend.flatMap(notification => {
+        const sendPromises = notificationsToSend.flatMap((notification) => {
             const payload = JSON.stringify({
                 title: notification.title,
                 body: `ถึงเวลากินยา ${notification.medicine.medicineName} (${notification.medicine.dosage} เม็ด)`,
@@ -63,17 +56,16 @@ export async function GET(request: Request) {
             });
 
             // ส่งแจ้งเตือนไปยังทุก subscription ของผู้ป่วยคนนั้น
-            return notification.patient.pushSubscriptions.map((sub: { id: number, endpoint: string, p256dh: string, auth: string }) => // <-- เพิ่ม Type ให้ sub
+            return notification.patient.pushSubscriptions.map((sub: any) =>
                 webpush.sendNotification(
                     {
                         endpoint: sub.endpoint,
                         keys: { p256dh: sub.p256dh, auth: sub.auth }
                     },
                     payload
-                ).catch((err: any) => { // <-- เพิ่ม Type ให้ err
+                ).catch((err: any) => {
                     console.error(`Failed to send push to ${sub.endpoint}. Error: ${err.message}`);
                     if (err.statusCode === 410) {
-                        // ถ้า subscription หมดอายุ (status 410) ให้ลบออกจาก DB
                         return prisma.pushSubscription.delete({ where: { id: sub.id } });
                     }
                 })

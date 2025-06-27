@@ -1,5 +1,7 @@
-// workbox-config.js
-module.exports = {
+
+const { injectManifest } = require('workbox-build');
+
+const workboxConfig = {
   // swSrc คือไฟล์ Service Worker ต้นทางที่เราเขียนเอง
   swSrc: 'public/sw-src.js',
   // swDest คือไฟล์ Service Worker ปลายทางที่จะถูกสร้างขึ้นมาในโฟลเดอร์ public
@@ -29,3 +31,15 @@ module.exports = {
     'sw-src.js'
   ]
 };
+
+console.log('📦 Starting Workbox build process...');
+
+injectManifest(workboxConfig).then(({ count, size, warnings }) => {
+  if (warnings.length > 0) {
+    console.warn('Workbox build warnings:', warnings);
+  }
+  console.log(`✅ Workbox build complete. Pre-cached ${count} files, totaling ${Math.round(size / 1024)} KB.`);
+}).catch(error => {
+    console.error('❌ Workbox build failed:', error);
+    process.exit(1);
+});
