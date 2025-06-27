@@ -171,7 +171,6 @@ export default function Home() {
 
       {/* Bottom Navigation */}
       <BottomNav activeTab={activeTab} onTabChange={setActiveTab} />
-
       {/* Hidden Test Tab */}
       <HiddenTestTab />
     </div>

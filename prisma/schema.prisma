@@ -25,6 +25,7 @@ model Patient {
   medicineNotifications MedicineNotification[]
   medicineConsumptions  MedicineConsumption[]
   prescriptions         Prescription[]
+  pushSubscriptions PushSubscription[]
 
   @@map("patients")
 }
@@ -111,4 +112,16 @@ model Prescription {
   patient          Patient   @relation(fields: [patientId], references: [id], onDelete: Cascade)
 
   @@map("prescriptions")
+}
+
+model PushSubscription {
+  id        Int      @id @default(autoincrement())
+  patientId Int
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now()) @db.Timestamp(6)
+  patient   Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@map("push_subscriptions")
 }

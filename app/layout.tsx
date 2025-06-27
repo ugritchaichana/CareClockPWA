@@ -1,8 +1,9 @@
+// app/layout.tsx
 import './globals.css'
 import type { Metadata, Viewport } from 'next'
 import { Prompt } from 'next/font/google'
-import PWAInstaller from '@/components/PWAInstaller'
 import ServiceWorkerManager from '@/components/ServiceWorkerManager'
+import { NotificationProvider } from '@/context/NotificationProvider' // <-- เพิ่ม import
 
 const prompt = Prompt({ 
   subsets: ['thai', 'latin'],
@@ -82,12 +83,15 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="CareClock" />
         <meta name="mobile-web-app-capable" content="yes" />
-      </head>      <body className={`${prompt.className} antialiased`}>
-        <ServiceWorkerManager />
-        <PWAInstaller />
-        <main className="min-h-screen bg-gray-50">
-          {children}
-        </main>
+      </head>
+      <body className={`${prompt.className} antialiased`}>
+        {/* V ครอบแอปพลิเคชันทั้งหมดด้วย Provider V */}
+        <NotificationProvider>
+          <ServiceWorkerManager />
+          <main className="min-h-screen bg-gray-50">
+            {children}
+          </main>
+        </NotificationProvider>
       </body>
     </html>
   )

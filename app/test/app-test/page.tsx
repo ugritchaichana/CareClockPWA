@@ -26,7 +26,6 @@ export default function AppTestPage() {
     try {
       addResult('🔔 Testing Notification Modal...')
       
-      // Create test modal data
       const testData: NotificationModalData = {
         medicineId: 1,
         medicineName: 'ยาทดสอบ (Test Medicine)',
@@ -103,9 +102,6 @@ export default function AppTestPage() {
           >
             🔔 เปิดทดสอบ Modal แจ้งเตือน
           </button>
-          <p className="text-xs text-gray-600 mt-2 text-center">
-            กดเพื่อทดสอบ Modal, เสียง, และการสั่น
-          </p>
         </div>
 
         {/* Test Results */}
@@ -164,9 +160,6 @@ export default function AppTestPage() {
                 <li>เสียงปลุกเล่นต่อเนื่อง (หลัง user interaction)</li>
                 <li>การสั่นทุก 30 วินาที</li>
                 <li>Countdown timer 5 นาที</li>
-                <li>Auto-dismiss เมื่อครบเวลา</li>
-                <li>ปุ่มตอบกลับใหญ่และชัดเจน</li>
-                <li>UX เหมาะกับผู้สูงอายุ</li>
               </ul>
             </div>
           </div>
