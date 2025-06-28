@@ -523,6 +523,11 @@ export class NotificationManager {
   private registerServiceWorkerListener() {
     if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
       navigator.serviceWorker.addEventListener('message', (event) => {
+        if (event.data?.type === 'USER_INTERACTION') {
+          this.initializeAudioWithUserInteraction();
+          return;
+        }
+
         if (event.data && event.data.type === 'NOTIFICATION_CLICKED') {
           const { notificationId, medicineId } = event.data;
           if (this.callbacks.onNotificationClick) this.callbacks.onNotificationClick(notificationId);

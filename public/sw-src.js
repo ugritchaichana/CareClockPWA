@@ -76,23 +76,24 @@ self.addEventListener('push', (event) => {
 
 // Handle tap on the notification
 self.addEventListener('notificationclick', (event) => {
+  const targetUrl = event.notification?.data?.url || '/';
   event.notification.close();
 
-  const targetUrl = event.notification.data?.url || '/';
-
   event.waitUntil(
-    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-      // Re-use an existing tab if one is already open for our PWA
-      for (const client of clientList) {
-        if ('url' in client && client.url.includes(targetUrl) && 'focus' in client) {
+    (async () => {
+      const allClients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+      for (const client of allClients) {
+        if (client.url === targetUrl && 'focus' in client) {
+          client.postMessage({ type: 'USER_INTERACTION' });
           return client.focus();
         }
       }
-      // Otherwise, open a new tab / window
+      // เปิดใหม่พร้อมส่ง message เมื่อเปิดสำเร็จ
       if (self.clients.openWindow) {
-        return self.clients.openWindow(targetUrl);
+        const newClient = await self.clients.openWindow(new URL(targetUrl, self.location.origin).href);
+        if (newClient) newClient.postMessage({ type: 'USER_INTERACTION' });
       }
-    })
+    })()
   );
 });
 
