@@ -13,8 +13,8 @@ const prompt = Prompt({
 })
 
 export const metadata: Metadata = {
-  title: 'CareClock - แอพแจ้งเตือนกินยา',
-  description: 'แอพพลิเคชันแจ้งเตือนกินยา - ทำงานได้แม้ offline พร้อมเสียงปลุกและการสั่น รองรับ iOS',
+  title: 'CareClock',
+  description: 'แอพพลิเคชันแจ้งเตือนกินยา',
   manifest: '/manifest.json',
   keywords: ['healthcare', 'mobile', 'care', 'clock', 'medicine', 'reminder', 'กินยา', 'แจ้งเตือน', 'ios', 'iphone', 'ipad'],
   authors: [{ name: 'CareClock Team' }],

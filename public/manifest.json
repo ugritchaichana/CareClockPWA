@@ -1,7 +1,7 @@
 {
-  "name": "CareClock - แอพแจ้งเตือนกินยา",
+  "name": "CareClock",
   "short_name": "CareClock",
-  "description": "แอพพลิเคชันแจ้งเตือนกินยา - ทำงานได้แม้ offline พร้อมเสียงปลุกและการสั่น รองรับ iOS",
+  "description": "แอพพลิเคชันแจ้งเตือนกินยา",
   "theme_color": "#FB929E",
   "background_color": "#FFF6F6",
   "display": "standalone",
