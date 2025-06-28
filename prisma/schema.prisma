@@ -8,49 +8,51 @@ datasource db {
 }
 
 model Patient {
-  id                    Int                     @id @default(autoincrement())
-  prefix                String                  @db.VarChar(20)
-  firstName             String                  @db.VarChar(100)
-  lastName              String                  @db.VarChar(100)
+  id                    Int                    @id @default(autoincrement())
+  prefix                String                 @db.VarChar(20)
+  firstName             String                 @db.VarChar(100)
+  lastName              String                 @db.VarChar(100)
   age                   Int
-  phoneNumber           String                  @unique @db.VarChar(20)
-  medicalRight          String?                 @db.VarChar(100)
+  phoneNumber           String                 @unique @db.VarChar(20)
+  medicalRight          String?                @db.VarChar(100)
   chronicDiseases       String?
   drugAllergy           String?
   profileImageUrl       String?
-  registeredAt          DateTime                @default(now()) @db.Timestamp(6)
-  createdAt             DateTime                @default(now()) @db.Timestamp(6)
-  updatedAt             DateTime                @updatedAt @db.Timestamp(6)
+  registeredAt          DateTime?              @default(now()) @db.Timestamp(6)
+  createdAt             DateTime?              @default(now()) @db.Timestamp(6)
+  updatedAt             DateTime?              @default(now()) @updatedAt @db.Timestamp(6)
   medicines             Medicine[]
-  medicineNotifications MedicineNotification[]
   medicineConsumptions  MedicineConsumption[]
+  medicineNotifications MedicineNotification[]
   prescriptions         Prescription[]
-  pushSubscriptions PushSubscription[]
 
+  @@index([phoneNumber], map: "idx_patients_phonenumber")
   @@map("patients")
 }
 
 model Medicine {
-  id                    Int                     @id @default(autoincrement())
+  id                    Int                    @id @default(autoincrement())
   patientId             Int
-  medicineName          String                  @db.VarChar(200)
+  medicineName          String                 @db.VarChar(200)
   medicineDetails       String?
-  consumptionType       String                  @db.VarChar(100)
+  consumptionType       String                 @db.VarChar(100)
   quantity              Int
-  currentStock          Int                     @default(0)
+  currentStock          Int                    @default(0)
   dosage                Int
-  morning               Boolean                 @default(false)
-  afternoon             Boolean                 @default(false)
-  evening               Boolean                 @default(false)
-  beforeBed             Boolean                 @default(false)
+  morning               Boolean?               @default(false)
+  afternoon             Boolean?               @default(false)
+  evening               Boolean?               @default(false)
+  beforeBed             Boolean?               @default(false)
   medicineImageUrl      String?
-  isActive              Boolean                 @default(true)
-  createdAt             DateTime                @default(now()) @db.Timestamp(6)
-  updatedAt             DateTime                @updatedAt @db.Timestamp(6)
-  patient               Patient                 @relation(fields: [patientId], references: [id], onDelete: Cascade)
-  medicineNotifications MedicineNotification[]
+  isActive              Boolean?               @default(true)
+  createdAt             DateTime?              @default(now()) @db.Timestamp(6)
+  updatedAt             DateTime?              @default(now()) @updatedAt @db.Timestamp(6)
+  patient               Patient                @relation(fields: [patientId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "medicine_patientid_fkey")
   medicineConsumptions  MedicineConsumption[]
+  medicineNotifications MedicineNotification[]
 
+  @@index([isActive], map: "idx_medicine_isactive")
+  @@index([patientId], map: "idx_medicine_patientid")
   @@map("medicine")
 }
 
@@ -60,16 +62,20 @@ model MedicineNotification {
   medicineId           Int
   title                String                @db.VarChar(200)
   message              String?
-  scheduledTime        DateTime              @db.Time()
-  timeType             String                @db.VarChar(20) // morning, afternoon, evening, beforeBed
-  isActive             Boolean               @default(true)
-  createdAt            DateTime              @default(now()) @db.Timestamp(6)
-  updatedAt            DateTime              @updatedAt @db.Timestamp(6)
-  groupId              String?               @map("group_id") @db.VarChar(100) // For grouping notifications created together
-  patient              Patient               @relation(fields: [patientId], references: [id], onDelete: Cascade)
-  medicine             Medicine              @relation(fields: [medicineId], references: [id], onDelete: Cascade)
+  scheduledTime        DateTime              @db.Time(6)
+  timeType             String                @db.VarChar(20)
+  isActive             Boolean?              @default(true)
+  createdAt            DateTime?             @default(now()) @db.Timestamp(6)
+  updatedAt            DateTime?             @default(now()) @updatedAt @db.Timestamp(6)
+  groupId              String?               @map("group_id") @db.VarChar(100)
   medicineConsumptions MedicineConsumption[]
+  medicine             Medicine              @relation(fields: [medicineId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "medicine_notifications_medicineid_fkey")
+  patient              Patient               @relation(fields: [patientId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "medicine_notifications_patientid_fkey")
 
+  @@index([isActive], map: "idx_medicine_notifications_isactive")
+  @@index([medicineId], map: "idx_medicine_notifications_medicineid")
+  @@index([patientId], map: "idx_medicine_notifications_patientid")
+  @@index([timeType], map: "idx_medicine_notifications_timetype")
   @@map("medicine_notifications")
 }
 
@@ -81,18 +87,20 @@ model MedicineConsumption {
   scheduledAt    DateTime              @db.Timestamp(6)
   consumedAt     DateTime?             @db.Timestamp(6)
   dosageTaken    Int?
-  status         String                @default("pending") @db.VarChar(20) // pending, taken, skipped, missed
+  status         String?               @default("pending") @db.VarChar(20)
   notes          String?
-  createdAt      DateTime              @default(now()) @db.Timestamp(6)
-  updatedAt      DateTime              @updatedAt @db.Timestamp(6)
-  patient        Patient               @relation(fields: [patientId], references: [id], onDelete: Cascade)
-  medicine       Medicine              @relation(fields: [medicineId], references: [id], onDelete: Cascade)
-  notification   MedicineNotification? @relation(fields: [notificationId], references: [id], onDelete: SetNull)
+  createdAt      DateTime?             @default(now()) @db.Timestamp(6)
+  updatedAt      DateTime?             @default(now()) @updatedAt @db.Timestamp(6)
+  medicine       Medicine              @relation(fields: [medicineId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "medicine_consumption_medicineid_fkey")
+  notification   MedicineNotification? @relation(fields: [notificationId], references: [id], onUpdate: NoAction, map: "medicine_consumption_notificationid_fkey")
+  patient        Patient               @relation(fields: [patientId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "medicine_consumption_patientid_fkey")
 
+  @@index([medicineId], map: "idx_medicine_consumption_medicineid")
+  @@index([patientId], map: "idx_medicine_consumption_patientid")
+  @@index([scheduledAt], map: "idx_medicine_consumption_scheduledat")
+  @@index([status], map: "idx_medicine_consumption_status")
   @@map("medicine_consumption")
 }
-
-
 
 model Prescription {
   id               Int       @id @default(autoincrement())
@@ -106,22 +114,11 @@ model Prescription {
   prescriptionDate DateTime? @db.Date
   doctorName       String?   @db.VarChar(100)
   hospitalName     String?   @db.VarChar(200)
-  isActive         Boolean   @default(true)
-  createdAt        DateTime  @default(now()) @db.Timestamp(6)
-  updatedAt        DateTime  @updatedAt @db.Timestamp(6)
-  patient          Patient   @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  isActive         Boolean?  @default(true)
+  createdAt        DateTime? @default(now()) @db.Timestamp(6)
+  updatedAt        DateTime? @default(now()) @updatedAt @db.Timestamp(6)
+  patient          Patient   @relation(fields: [patientId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "prescriptions_patientid_fkey")
 
+  @@index([patientId], map: "idx_prescriptions_patientid")
   @@map("prescriptions")
-}
-
-model PushSubscription {
-  id        Int      @id @default(autoincrement())
-  patientId Int
-  endpoint  String   @unique
-  p256dh    String
-  auth      String
-  createdAt DateTime @default(now()) @db.Timestamp(6)
-  patient   Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
-
-  @@map("push_subscriptions")
 }

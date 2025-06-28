@@ -48,14 +48,52 @@ workbox.routing.registerRoute(
 
 // ----------------- Custom Push & Notification Logic (จากโค้ดเดิมของคุณ) -----------------
 
-// Enhanced push event for notifications
+// Handle incoming push events and display notifications
 self.addEventListener('push', (event) => {
-  // ... (โค้ด push event handler เดิมของคุณ) ...
+  // Parse payload – fallback to empty object if none
+  let payload = {};
+  try {
+    payload = event.data ? event.data.json() : {};
+  } catch (_) {
+    // If payload is not JSON, treat it as text
+    payload = { title: event.data?.text() };
+  }
+
+  // Notification details with sensible defaults
+  const title = payload.title || 'CareClock – แจ้งเตือน';
+  const options = {
+    body: payload.body || 'คุณมีการแจ้งเตือนใหม่',
+    icon: payload.icon || '/asset/CareClockLOGO.PNG',
+    badge: payload.badge || '/asset/CareClockLOGO.PNG',
+    data: payload.data || {},
+    // Vibrate on devices that support it (Android)
+    vibrate: [200, 100, 200],
+  };
+
+  // Ensure the promise lives until showNotification resolves
+  event.waitUntil(self.registration.showNotification(title, options));
 });
 
-// Notification click event
+// Handle tap on the notification
 self.addEventListener('notificationclick', (event) => {
-  // ... (โค้ด notificationclick event handler เดิมของคุณ) ...
+  event.notification.close();
+
+  const targetUrl = event.notification.data?.url || '/';
+
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      // Re-use an existing tab if one is already open for our PWA
+      for (const client of clientList) {
+        if ('url' in client && client.url.includes(targetUrl) && 'focus' in client) {
+          return client.focus();
+        }
+      }
+      // Otherwise, open a new tab / window
+      if (self.clients.openWindow) {
+        return self.clients.openWindow(targetUrl);
+      }
+    })
+  );
 });
 
 // ----------------- Other Service Worker Events -----------------

@@ -1,4 +1,3 @@
-
 const { injectManifest } = require('workbox-build');
 
 const workboxConfig = {
@@ -6,29 +5,29 @@ const workboxConfig = {
   swSrc: 'public/sw-src.js',
   // swDest คือไฟล์ Service Worker ปลายทางที่จะถูกสร้างขึ้นมาในโฟลเดอร์ public
   swDest: 'public/sw.js',
-  // globDirectory คือโฟลเดอร์หลักที่ Workbox จะค้นหาไฟล์เพื่อนำไป precache
-  // เราตั้งค่าเป็น .next/static เพื่อให้มันหาไฟล์ JS, CSS ที่ Next.js สร้างขึ้นเจอ
-  globDirectory: '.next/static',
-  // globPatterns คือรูปแบบของไฟล์ที่เราต้องการให้ cache
+  // globDirectory คือโฟลเดอร์หลักที่เราจะค้นหาไฟล์ (root ของโปรเจกต์)
+  globDirectory: '.',
+  // globPatterns บอกให้ Workbox รู้ว่าต้อง precache ไฟล์อะไรบ้าง
   globPatterns: [
-    '**/*.{js,css,woff2}'
+    // ไฟล์ public assets
+    'public/asset/**/*',
+    'public/manifest.json',
+    'public/offline.html',
+    'public/sounds/**/*'
   ],
-  // injectionPoint คือตัวแปรใน swSrc ที่จะถูกแทนที่ด้วยรายชื่อไฟล์ (manifest)
+  // แก้ไข URL prefix ให้ถูกต้องตามที่ Next.js serve
+  modifyURLPrefix: {
+    'public/': '/'
+  },
+  // injectionPoint คือจุดที่จะแทรก manifest ใน sw-src.js
   injectionPoint: 'self.__WB_MANIFEST',
-  // workbox จะทำการ generate ไฟล์ sw.js ในโฟลเดอร์ public
-  // เราจึงไม่ต้องให้มัน copy ไฟล์จากที่อื่นมาอีก
-  // แต่เราสามารถเพิ่มไฟล์จากโฟลเดอร์ public เข้าไปใน manifest ได้
-  additionalManifestEntries: [
-    { url: '/manifest.json', revision: null },
-    { url: '/offline.html', revision: null },
-    { url: '/asset/CareClockLOGO.PNG', revision: null }
-    // เพิ่มไฟล์อื่นๆ ใน public ที่ต้องการให้ offline ได้ที่นี่
-  ],
-  // ไม่ต้อง cache ไฟล์เหล่านี้
+  // ไฟล์และโฟลเดอร์ที่ไม่ต้องการให้ precache
   globIgnores: [
-    '**/node_modules/**/*',
-    'sw.js',
-    'sw-src.js'
+    '**/node_modules/**',
+    'public/sw.js',
+    'public/sw-src.js',
+    'next.config.js',
+    'public/uploads/**'
   ]
 };
 
