@@ -102,6 +102,9 @@ self.addEventListener('notificationclick', (event) => {
 // notification. This is useful when the app detects that it is time to remind
 // the user while the PWA might be in the background, suspended, or closed.
 self.addEventListener('message', (event) => {
+  if (event.data?.type) {
+    console.log('[SW] message received type:', event.data.type);
+  }
   if (!event.data || event.data.type !== 'SHOW_NOTIFICATION') return;
 
   const payload = event.data.notification || {};
