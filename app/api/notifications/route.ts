@@ -1,3 +1,7 @@
+// ======================================================================
+// File: app/api/notifications/route.ts (ฉบับแก้ไขสมบูรณ์)
+// นี่คือโค้ดที่ถูกต้องสำหรับ API Route ของ Next.js
+// ======================================================================
 import { NextRequest, NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
 
@@ -16,17 +20,12 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Find the user
-    const user = await prisma.patient.findUnique({
-      where: { phoneNumber }
-    })
+    const user = await prisma.patient.findUnique({ where: { phoneNumber } })
 
     if (!user) {
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
-      )
-    }    // Fetch all notifications with medicine details
+      return NextResponse.json({ error: 'User not found' }, { status: 404 })
+    }
+    
     const notifications = await prisma.medicineNotification.findMany({
       where: { 
         patientId: user.id
@@ -70,124 +69,64 @@ export async function POST(request: NextRequest) {
       medicineId, 
       title, 
       message, 
-      scheduledTime, 
+      scheduledTime, // e.g., "07:42" (This is Thailand Time)
       timeType,
-      groupId,
-      timezone 
+      groupId
     } = body
 
-    console.log('Received notification data:', {
-      scheduledTime,
-      timeType,
-      timezone: timezone || 'Thailand (all users)',
-      userAgent: request.headers.get('user-agent')
-    })
-
     if (!phoneNumber || !medicineId || !title || !scheduledTime || !timeType) {
-      return NextResponse.json(
-        { error: 'Missing required fields' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    // Find the user
-    const user = await prisma.patient.findUnique({
-      where: { phoneNumber }
-    })
-
+    const user = await prisma.patient.findUnique({ where: { phoneNumber } });
     if (!user) {
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
-      )
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
-
-    // Verify medicine belongs to user
+    
     const medicine = await prisma.medicine.findFirst({
-      where: {
-        id: parseInt(medicineId),
-        patientId: user.id
-      }
-    })
+        where: { id: parseInt(medicineId), patientId: user.id }
+    });
 
     if (!medicine) {
-      return NextResponse.json(
-        { error: 'Medicine not found or does not belong to user' },
-        { status: 404 }
-      )
-    }    // Handle timezone and convert scheduledTime
-    let scheduledDateTime: Date
-    try {
-      // Simple approach: Always treat input as HH:mm in user's local timezone
-      const today = new Date()
-      const [hours, minutes] = scheduledTime.split(':').map(Number)
-      
-      // Validate time format
-      if (isNaN(hours) || isNaN(minutes) || hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
-        return NextResponse.json(
-          { error: 'Invalid time format. Please use HH:mm format (e.g., 08:30)' },
-          { status: 400 }
-        )
-      }
-      
-      // Create date object - this will be in server's timezone but that's okay
-      // because we'll always format it back with the user's timezone when displaying
-      scheduledDateTime = new Date(today.getFullYear(), today.getMonth(), today.getDate(), hours, minutes, 0)
-      
-      console.log('Time processing:', {
-        input: scheduledTime,
-        parsed: { hours, minutes },
-        created: scheduledDateTime,
-        timezone: 'Asia/Bangkok (Thailand)',
-        serverTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone
-      })
-      
-      // Validate the final date
-      if (isNaN(scheduledDateTime.getTime())) {
-        throw new Error('Invalid date created')
-      }
-      
-    } catch (timeError) {
-      console.error('Error parsing scheduled time:', timeError, 'Input:', scheduledTime)
-      return NextResponse.json(
-        { error: 'Invalid time format. Please provide a valid time.' },
-        { status: 400 }
-      )
+        return NextResponse.json({ error: 'Medicine not found or does not belong to user' }, { status: 404 });
     }
 
-    // Create notification
+    // --- Timezone Correction Logic ---
+    const [hours, minutes] = scheduledTime.split(':').map(Number);
+    
+    const dateOnServer = new Date(); 
+    dateOnServer.setHours(hours, minutes, 0, 0);
+
+    const serverTimezoneOffset = dateOnServer.getTimezoneOffset();
+    const thailandTimezoneOffset = -420;
+    
+    const dateInUTC = new Date(dateOnServer.getTime() - (serverTimezoneOffset - thailandTimezoneOffset) * 60 * 1000);
+    
+    const scheduledDateTimeToSave = dateInUTC;
+
     const notification = await prisma.medicineNotification.create({
       data: {
         patientId: user.id,
         medicineId: parseInt(medicineId),
         title,
-        message: message || `เวลากินยา ${medicine.medicineName}`,
-        scheduledTime: scheduledDateTime,
+        message: message || `ถึงเวลากินยา ${medicine.medicineName}`,
+        scheduledTime: scheduledDateTimeToSave,
         timeType,
-        groupId: groupId || null // Add groupId to database
+        groupId: groupId || null
       }
-    })
-
-    console.log('Created notification:', {
-      id: notification.id,
-      title: notification.title,
-      scheduledTime: notification.scheduledTime,
-      scheduledTimeFormatted: notification.scheduledTime.toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' }),
-      timeType: notification.timeType,
-      note: 'All users are in Thailand timezone'
-    })
+    });
 
     return NextResponse.json({
       message: 'Notification created successfully',
       notification
-    })
+    });
 
   } catch (error) {
-    console.error('Error creating notification:', error)
+    console.error('Error creating notification:', error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Internal server error', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
-    )
+    );
   }
 }
 
@@ -212,19 +151,14 @@ export async function PUT(request: NextRequest) {
       )
     }
 
-    // Find the user
     const user = await prisma.patient.findUnique({
       where: { phoneNumber }
     })
 
     if (!user) {
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
-      )
+      return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
 
-    // Verify notification belongs to user
     const existingNotification = await prisma.medicineNotification.findFirst({
       where: {
         id: parseInt(notificationId),
@@ -237,32 +171,21 @@ export async function PUT(request: NextRequest) {
         { error: 'Notification not found or does not belong to user' },
         { status: 404 }
       )
-    }    // Convert time string (HH:mm) to DateTime if scheduledTime is provided
-    let scheduledDateTime = existingNotification.scheduledTime
+    }
+    
+    let scheduledDateTime = existingNotification.scheduledTime;
     if (scheduledTime) {
-      try {
-        const today = new Date()
-        const [hours, minutes] = scheduledTime.split(':').map(Number)
+        const [hours, minutes] = scheduledTime.split(':').map(Number);
+        const dateOnServer = new Date();
+        dateOnServer.setHours(hours, minutes, 0, 0);
+
+        const serverTimezoneOffset = dateOnServer.getTimezoneOffset();
+        const thailandTimezoneOffset = -420;
         
-        // Validate time format
-        if (isNaN(hours) || isNaN(minutes) || hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
-          return NextResponse.json(
-            { error: 'Invalid time format. Please use HH:mm format (e.g., 08:30)' },
-            { status: 400 }
-          )
-        }
-        
-        scheduledDateTime = new Date(today.getFullYear(), today.getMonth(), today.getDate(), hours, minutes, 0)
-      } catch (timeError) {
-        console.error('Error parsing scheduled time:', timeError)
-        return NextResponse.json(
-          { error: 'Invalid time format. Please use HH:mm format (e.g., 08:30)' },
-          { status: 400 }
-        )
-      }
+        const dateInUTC = new Date(dateOnServer.getTime() - (serverTimezoneOffset - thailandTimezoneOffset) * 60 * 1000);
+        scheduledDateTime = dateInUTC;
     }
 
-    // Update notification
     const notification = await prisma.medicineNotification.update({
       where: { id: parseInt(notificationId) },
       data: {
@@ -302,7 +225,6 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
-    // Find the user
     const user = await prisma.patient.findUnique({
       where: { phoneNumber }
     })
@@ -314,7 +236,6 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
-    // Verify notification belongs to user and delete
     const deletedNotification = await prisma.medicineNotification.deleteMany({
       where: {
         id: parseInt(notificationId),
@@ -354,7 +275,6 @@ export async function PATCH(request: NextRequest) {
       )
     }
 
-    // Find the user
     const user = await prisma.patient.findUnique({
       where: { phoneNumber }
     })
@@ -366,7 +286,6 @@ export async function PATCH(request: NextRequest) {
       )
     }
 
-    // Update notification status
     const updatedNotification = await prisma.medicineNotification.updateMany({
       where: {
         id: parseInt(notificationId),

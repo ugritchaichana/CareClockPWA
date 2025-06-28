@@ -2,7 +2,7 @@ import { serve } from "std/http/server.ts"
 import { createClient } from "supabase-js"
 import webpush from "web-push"
 
-// Type definitions for clarity
+
 interface PushSubscription {
   id: number;
   endpoint: string;
@@ -48,12 +48,15 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     )
 
-    // 3. Query หาการแจ้งเตือนที่ถึงเวลา
+    // 3. Query หาการแจ้งเตือนที่ถึงเวลา (แบบใหม่: ค้นหาเป็นช่วง)
     const now = new Date()
     const currentUTCHours = now.getUTCHours()
     const currentUTCMinutes = now.getUTCMinutes()
 
-    const targetTime = `${String(currentUTCHours).padStart(2, '0')}:${String(currentUTCMinutes).padStart(2, '0')}:00`
+    // สร้างเวลาเริ่มต้นและสิ้นสุดของ "นาทีปัจจุบัน" ในรูปแบบ HH:mm:ss
+    const startTime = `${String(currentUTCHours).padStart(2, '0')}:${String(currentUTCMinutes).padStart(2, '0')}:00`
+    const endTime = `${String(currentUTCHours).padStart(2, '0')}:${String(currentUTCMinutes).padStart(2, '0')}:59`
+
 
     const { data: notificationsToSend, error: queryError } = await supabaseClient
       .from('medicine_notifications')
@@ -66,7 +69,10 @@ serve(async (req) => {
         medicine:medicines (medicineName, dosage)
       `)
       .eq('isActive', true)
-      .eq('scheduledTime', targetTime)
+      // --- จุดแก้ไข ---
+      // ค้นหาเวลาที่อยู่ระหว่าง startTime และ endTime
+      .gte('scheduledTime', startTime)
+      .lte('scheduledTime', endTime)
 
     if (queryError) {
       throw queryError
@@ -94,7 +100,7 @@ serve(async (req) => {
             keys: { p256dh: sub.p256dh, auth: sub.auth },
           },
           payload
-        ).catch(async (err: any) => { // Type 'any' is acceptable here for error handling
+        ).catch(async (err: any) => {
           console.error(`Failed to send push to ${sub.endpoint}. Status: ${err.statusCode}`)
           if (err.statusCode === 410) {
             await supabaseClient.from('push_subscriptions').delete().eq('id', sub.id)
@@ -114,3 +120,4 @@ serve(async (req) => {
     return new Response(String(error?.message || error), { status: 500 })
   }
 })
+
