@@ -132,17 +132,43 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   // ฟังก์ชันสำหรับขออนุญาต Push Notification และส่ง Subscription ไปยัง Backend
   const subscribeUserToPush = useCallback(async (registration: ServiceWorkerRegistration, phoneNumber: string) => {
     try {
-        const applicationServerKey = urlBase64ToUint8Array(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!);
+        // 1) Ensure Notification permission (push subscribe จะ trigger แต่ขอชัดเจนไว้ก่อน)
+        const permission = await Notification.requestPermission();
+        if (permission !== 'granted') {
+          console.warn('Notification permission not granted');
+          return;
+        }
+
+        // 2) Get VAPID public key (env หรือ fallback fetch)
+        let publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+        if (!publicKey) {
+          try {
+            const res = await fetch('/api/push/public-key');
+            if (res.ok) {
+              const json = await res.json();
+              publicKey = json.publicKey;
+            }
+          } catch (e) {
+            console.error('Failed to fetch public VAPID key', e);
+          }
+        }
+
+        if (!publicKey) {
+          console.error('No VAPID public key found, cannot subscribe');
+          return;
+        }
+
+        const applicationServerKey = urlBase64ToUint8Array(publicKey);
         const subscription = await registration.pushManager.subscribe({
-            userVisibleOnly: true,
-            applicationServerKey: applicationServerKey
+          userVisibleOnly: true,
+          applicationServerKey,
         });
-        
+
         console.log('User is subscribed:', subscription);
         await fetch('/api/push/subscribe', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ subscription, phoneNumber }),
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ subscription, phoneNumber }),
         });
     } catch (err) {
         console.error('Failed to subscribe the user: ', err);

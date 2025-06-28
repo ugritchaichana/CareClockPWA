@@ -265,28 +265,49 @@ export class NotificationManager {
     if (typeof window === 'undefined' || typeof navigator === 'undefined') return;
     try {
       const notificationUrl = `${window.location.origin}/?notification_id=${notification.id}`;
-      if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-        navigator.serviceWorker.controller.postMessage({
-          type: 'SHOW_NOTIFICATION',
-          notification: {
-            title: notification.title,
-            body: `${notification.medicineName} - ${notification.dosage} เม็ด\n${notification.message}`,
-            tag: `medicine-${notification.id}`,
-            icon: '/asset/CareClockLOGO.PNG',
-            badge: '/asset/CareClockLOGO.PNG',
-            requireInteraction: true,
-            silent: false,
-            vibrate: notification.vibrationEnabled ? [200, 100, 200, 100, 200] : undefined,
-            data: { url: notificationUrl, medicineId: notification.medicineId, notificationId: notification.id },
-            actions: [
-              { action: 'taken', title: '✅ กินแล้ว' },
-              { action: 'skip', title: '⏭️ ข้าม' },
-              { action: 'view', title: '👀 ดูรายละเอียด' }
-            ]
+      if ('serviceWorker' in navigator) {
+        if (navigator.serviceWorker.controller) {
+          navigator.serviceWorker.controller.postMessage({
+            type: 'SHOW_NOTIFICATION',
+            notification: {
+              title: notification.title,
+              body: `${notification.medicineName} - ${notification.dosage} เม็ด\n${notification.message}`,
+              tag: `medicine-${notification.id}`,
+              icon: '/asset/CareClockLOGO.PNG',
+              badge: '/asset/CareClockLOGO.PNG',
+              requireInteraction: true,
+              silent: false,
+              vibrate: notification.vibrationEnabled ? [200, 100, 200, 100, 200] : undefined,
+              data: { url: notificationUrl, medicineId: notification.medicineId, notificationId: notification.id },
+              actions: [
+                { action: 'taken', title: '✅ กินแล้ว' },
+                { action: 'skip', title: '⏭️ ข้าม' },
+                { action: 'view', title: '👀 ดูรายละเอียด' }
+              ]
+            }
+          });
+        } else {
+          const registration = await navigator.serviceWorker.ready;
+          if (registration?.showNotification) {
+            await registration.showNotification(notification.title, {
+              body: `${notification.medicineName} - ${notification.dosage} เม็ด\n${notification.message}`,
+              tag: `medicine-${notification.id}`,
+              icon: '/asset/CareClockLOGO.PNG',
+              badge: '/asset/CareClockLOGO.PNG',
+              requireInteraction: true,
+              silent: !notification.soundEnabled,
+              data: { url: notificationUrl, medicineId: notification.medicineId, notificationId: notification.id },
+              vibrate: notification.vibrationEnabled ? [200, 100, 200, 100, 200] : undefined,
+              actions: [
+                { action: 'taken', title: '✅ กินแล้ว' },
+                { action: 'skip', title: '⏭️ ข้าม' },
+                { action: 'view', title: '👀 ดูรายละเอียด' }
+              ]
+            } as any);
           }
-        });
+        }
       } else {
-        const options: NotificationOptions = {
+        const options: any = {
           body: `${notification.medicineName} - ${notification.dosage} เม็ด\n${notification.message}`,
           icon: '/asset/CareClockLOGO.PNG',
           badge: '/asset/CareClockLOGO.PNG',
@@ -319,8 +340,67 @@ export class NotificationManager {
         };
         setTimeout(() => notif.close(), 30000);
       }
+
+      // Fallback/duplicate safeguard – attempt to use ready registration as well. Browsers will
+      // dedupe based on the `tag` so user will not see duplicates, but ensures notification shows
+      // even if message channel fails for some reason.
+      if ('serviceWorker' in navigator) {
+        try {
+          const registration = await navigator.serviceWorker.ready;
+          registration.showNotification(notification.title, {
+            body: `${notification.medicineName} - ${notification.dosage} เม็ด\n${notification.message}`,
+            tag: `medicine-${notification.id}`,
+            icon: '/asset/CareClockLOGO.PNG',
+            badge: '/asset/CareClockLOGO.PNG',
+            requireInteraction: true,
+            silent: !notification.soundEnabled,
+            data: { url: notificationUrl, medicineId: notification.medicineId, notificationId: notification.id },
+            vibrate: notification.vibrationEnabled ? [200, 100, 200, 100, 200] : undefined,
+            actions: [
+              { action: 'taken', title: '✅ กินแล้ว' },
+              { action: 'skip', title: '⏭️ ข้าม' },
+              { action: 'view', title: '👀 ดูรายละเอียด' },
+            ],
+          } as any);
+        } catch (e) {
+          console.warn('Fallback registration.showNotification failed', e);
+        }
+      }
     } catch (error) {
       console.error('Failed to show system notification:', error);
+      // Ultimate fallback: try in-page Notification constructor (will be ignored if permissions/visibility rules block it)
+      try {
+        if ('Notification' in window && Notification.permission === 'granted') {
+          const options: any = {
+            body: `${notification.medicineName} - ${notification.dosage} เม็ด\n${notification.message}`,
+            tag: `medicine-${notification.id}`,
+            icon: '/asset/CareClockLOGO.PNG',
+            badge: '/asset/CareClockLOGO.PNG',
+            requireInteraction: true,
+            vibrate: notification.vibrationEnabled ? [200, 100, 200] : undefined,
+            data: { url: `${window.location.origin}/?notification_id=${notification.id}`, medicineId: notification.medicineId, notificationId: notification.id },
+          };
+          const notif = new Notification(notification.title, options);
+          notif.onclick = () => {
+            window.focus();
+            notif.close();
+            if (this.callbacks.onShowModal) {
+              this.callbacks.onShowModal({
+                medicineId: notification.medicineId,
+                medicineName: notification.medicineName,
+                dosage: notification.dosage,
+                medicineImageUrl: notification.medicineImageUrl,
+                title: notification.title,
+                message: notification.message,
+                timeType: notification.timeType,
+                scheduledTime: notification.scheduledTime,
+              });
+            }
+          };
+        }
+      } catch (fallbackErr) {
+        console.warn('In-page Notification fallback failed', fallbackErr);
+      }
     }
   }
 
@@ -468,20 +548,46 @@ export class NotificationManager {
 
   public async syncNotifications(serverNotifications: any[]) {
     try {
-      const localNotifications: ScheduledNotification[] = serverNotifications.map(notif => ({
-        id: `${notif.id}-${notif.timeType}`,
-        medicineId: notif.medicineId,
-        medicineName: notif.medicine?.medicineName || 'Unknown Medicine',
-        title: notif.title,
-        message: notif.message || '',
-        scheduledTime: notif.scheduledTime.substring(0, 5),
-        timeType: notif.timeType,
-        isActive: notif.isActive,
-        dosage: notif.medicine?.dosage || 1,
-        soundEnabled: true,
-        vibrationEnabled: true,
-        medicineImageUrl: notif.medicine?.medicineImageUrl
-      }));
+      const localNotifications: ScheduledNotification[] = serverNotifications.map(notif => {
+        // --- Extract HH:mm regardless of whether backend returns ISO string or plain time ---
+        let timeStr = '';
+        try {
+          if (typeof notif.scheduledTime === 'string') {
+            if (/^\d{2}:\d{2}/.test(notif.scheduledTime)) {
+              // e.g. "06:15:00" or "06:15"
+              timeStr = notif.scheduledTime.substring(0,5);
+            } else {
+              const d = new Date(notif.scheduledTime);
+              if (!isNaN(d.getTime())) {
+                timeStr = d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Bangkok' });
+              }
+            }
+          } else if (notif.scheduledTime instanceof Date) {
+            timeStr = notif.scheduledTime.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Bangkok' });
+          }
+        } catch (err) {
+          console.warn('Failed to parse scheduledTime', notif.scheduledTime, err);
+        }
+        if (!/^\d{2}:\d{2}$/.test(timeStr)) {
+          // fallback to 00:00 to avoid false triggering
+          timeStr = '00:00';
+        }
+
+        return {
+          id: `${notif.id}-${notif.timeType}`,
+          medicineId: notif.medicineId,
+          medicineName: notif.medicine?.medicineName || 'Unknown Medicine',
+          title: notif.title,
+          message: notif.message || '',
+          scheduledTime: timeStr,
+          timeType: notif.timeType,
+          isActive: notif.isActive,
+          dosage: notif.medicine?.dosage || 1,
+          soundEnabled: true,
+          vibrationEnabled: true,
+          medicineImageUrl: notif.medicine?.medicineImageUrl
+        } as ScheduledNotification;
+      });
       this.notifications = localNotifications;
       this.saveNotificationsToStorage();
       console.log(`Synced ${localNotifications.length} notifications`);

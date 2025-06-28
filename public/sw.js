@@ -96,6 +96,43 @@ self.addEventListener('notificationclick', (event) => {
   );
 });
 
+// ----------------- Client-Triggered Notification via postMessage -----------------
+// Allow the web app (in foreground) to ask the Service Worker to show a system
+// notification. This is useful when the app detects that it is time to remind
+// the user while the PWA might be in the background, suspended, or closed.
+self.addEventListener('message', (event) => {
+  if (!event.data || event.data.type !== 'SHOW_NOTIFICATION') return;
+
+  const payload = event.data.notification || {};
+
+  const {
+    title = 'CareClock – แจ้งเตือน',
+    body = 'คุณมีการแจ้งเตือนใหม่',
+    icon = '/asset/CareClockLOGO.PNG',
+    badge = '/asset/CareClockLOGO.PNG',
+    tag,
+    requireInteraction = false,
+    silent = false,
+    vibrate,
+    data = {},
+    actions = [],
+  } = payload;
+
+  const options = {
+    body,
+    icon,
+    badge,
+    tag,
+    requireInteraction,
+    silent,
+    vibrate,
+    data,
+    actions,
+  };
+
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
 // ----------------- Other Service Worker Events -----------------
 self.addEventListener('install', (event) => {
   console.log('Service Worker: Install');
