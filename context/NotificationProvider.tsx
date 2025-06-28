@@ -1,9 +1,9 @@
 // app/context/NotificationProvider.tsx
 'use client'
 
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef } from 'react';
 import NotificationModal, { NotificationModalData } from '@/components/NotificationModal';
-import { localStorageService } from '@/lib/localStorage';
+import { dataService, getNotifications } from '@/lib/dataService';
 
 // --- Type Definitions ---
 interface PatientData {
@@ -53,7 +53,7 @@ const urlBase64ToUint8Array = (base64String: string) => {
 // --- Provider Component ---
 export function NotificationProvider({ children }: { children: ReactNode }) {
   const [modalData, setModalData] = useState<NotificationModalData | null>(null);
-  const [activeTimers, setActiveTimers] = useState<NodeJS.Timeout[]>([]);
+  const activeTimers = useRef<NodeJS.Timeout[]>([]);
 
   const hideModal = useCallback(() => {
     setModalData(null);
@@ -74,33 +74,34 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const recordConsumption = async (action: 'taken' | 'skipped') => {
     if (!modalData) return;
     try {
-        const patientData = localStorageService.getItem<PatientData>('patient-data');
-        if (!patientData?.phoneNumber) return;
+      const patientData = dataService.getPatientData();
+      if (!patientData?.phoneNumber) return;
 
-        await fetch('/api/medicines/consumption', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                phoneNumber: patientData.phoneNumber,
-                medicineId: modalData.medicineId,
-                status: action,
-                dosageTaken: action === 'taken' ? modalData.dosage : 0,
-            }),
-        });
-        console.log(`Consumption recorded: ${action}`);
+      await fetch('/api/medicines/consumption', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phoneNumber: patientData.phoneNumber,
+          medicineId: modalData.medicineId,
+          status: action,
+          dosageTaken: action === 'taken' ? modalData.dosage : 0,
+        }),
+      });
+      console.log(`Consumption recorded: ${action}`);
     } catch (error) {
-        console.error('Failed to record consumption', error);
+      console.error('Failed to record consumption', error);
     } finally {
-        hideModal();
+      hideModal();
     }
   };
 
-  const scheduleNotifications = useCallback((notifications: NotificationDataFromAPI[]) => {
-    activeTimers.forEach(clearTimeout);
+  const scheduleNotifications = useCallback(() => {
+    const notifications = getNotifications();
+    activeTimers.current.forEach(clearTimeout);
     const newTimers: NodeJS.Timeout[] = [];
     const now = new Date();
 
-    notifications.forEach(notification => {
+    notifications.forEach((notification: any) => {
       if (!notification.isActive) return;
 
       const scheduledTime = new Date(notification.scheduledTime);
@@ -125,8 +126,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         newTimers.push(timer);
       }
     });
-    setActiveTimers(newTimers);
-  }, [activeTimers, showModal]);
+    activeTimers.current = newTimers;
+  }, [showModal]);
 
   // ฟังก์ชันสำหรับขออนุญาต Push Notification และส่ง Subscription ไปยัง Backend
   const subscribeUserToPush = useCallback(async (registration: ServiceWorkerRegistration, phoneNumber: string) => {
@@ -138,7 +139,6 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         });
         
         console.log('User is subscribed:', subscription);
-        // ส่ง subscription object ไปที่ backend
         await fetch('/api/push/subscribe', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -149,46 +149,54 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // useEffect หลัก
+  // useEffect หลัก: จัดการ data fetching, push subscription, และ background sync
   useEffect(() => {
-    const patientData = localStorageService.getItem<PatientData>('patient-data');
-    if (patientData?.phoneNumber) {
-      // 1. ดึงข้อมูลการแจ้งเตือน (สำหรับแสดง Modal เมื่อเปิดแอป)
-      fetch(`/api/notifications?phoneNumber=${patientData.phoneNumber}`)
-        .then(res => res.json())
-        .then(data => {
-          if (data.notifications) {
-            scheduleNotifications(data.notifications);
-          }
-        })
-        .catch(console.error);
+    const patientData = dataService.getPatientData();
 
-      // 2. จัดการ Push Subscription (สำหรับแจ้งเตือนเมื่อปิดแอป)
-      if ('serviceWorker' in navigator && 'PushManager' in window) {
-        navigator.serviceWorker.ready.then(registration => {
-          registration.pushManager.getSubscription().then(subscription => {
-            if (subscription === null) {
-              console.log('Not subscribed to push notifications, starting subscription...');
-              subscribeUserToPush(registration, patientData.phoneNumber);
-            } else {
-              console.log('User is already subscribed.');
-              // ส่งข้อมูลไปอัปเดตที่ server เพื่อให้แน่ใจว่าข้อมูลเป็นปัจจุบัน
-              fetch('/api/push/subscribe', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ subscription, phoneNumber: patientData.phoneNumber }),
-              });
-            }
-          });
-        });
+    const handleInitialSetup = async () => {
+      if (patientData?.phoneNumber) {
+        // 1. ดึงข้อมูลครั้งแรกเมื่อเปิดแอป
+        await dataService.fetchAllDataAndStore();
+        scheduleNotifications();
+
+        // 2. จัดการ Push Subscription
+        if ('serviceWorker' in navigator && 'PushManager' in window) {
+          const registration = await navigator.serviceWorker.ready;
+          const subscription = await registration.pushManager.getSubscription();
+          if (subscription === null) {
+            console.log('Not subscribed to push notifications, starting subscription...');
+            subscribeUserToPush(registration, patientData.phoneNumber);
+          } else {
+            console.log('User is already subscribed.');
+            // ส่งข้อมูลไปอัปเดตเพื่อให้แน่ใจว่า server มีข้อมูลล่าสุด
+            fetch('/api/push/subscribe', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ subscription, phoneNumber: patientData.phoneNumber }),
+            });
+          }
+        }
       }
-    }
+    };
+
+    handleInitialSetup();
+
+    // 3. ตั้งค่าการ Sync ข้อมูลทุกๆ 1 นาที
+    const syncInterval = setInterval(() => {
+      console.log('Periodic sync...');
+      dataService.fetchAllDataAndStore();
+    }, 60 * 1000); // 1 นาที
+
+    // 4. ตั้งค่า Listener เพื่อ re-schedule ทันทีเมื่อข้อมูลเปลี่ยน
+    window.addEventListener('appDataUpdated', scheduleNotifications);
 
     // Cleanup function
     return () => {
-      activeTimers.forEach(clearTimeout);
+      activeTimers.current.forEach(clearTimeout);
+      clearInterval(syncInterval);
+      window.removeEventListener('appDataUpdated', scheduleNotifications);
     };
-  }, [activeTimers, scheduleNotifications, subscribeUserToPush]);
+  }, [scheduleNotifications, subscribeUserToPush]);
 
   return (
     <NotificationContext.Provider value={{}}>

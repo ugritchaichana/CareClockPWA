@@ -62,9 +62,9 @@ model MedicineNotification {
   medicineId           Int
   title                String                @db.VarChar(200)
   message              String?
-  scheduledTime        DateTime              @db.Time(6)
+  scheduledTime        DateTime              @db.Timestamp(6)
   timeType             String                @db.VarChar(20)
-  isActive             Boolean?              @default(true)
+  isActive             Boolean               @default(true)
   createdAt            DateTime?             @default(now()) @db.Timestamp(6)
   updatedAt            DateTime?             @default(now()) @updatedAt @db.Timestamp(6)
   groupId              String?               @map("group_id") @db.VarChar(100)

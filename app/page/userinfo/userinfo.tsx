@@ -1,23 +1,11 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { localStorageService } from '../../../lib/localStorage'
+import { dataService, PatientData } from '@/lib/dataService'
 import { useRouter } from 'next/navigation'
 import LoadingButton from '@/components/LoadingButton'
 import Toast, { useToast } from '@/components/Toast'
-
-interface PatientData {
-  prefix: string
-  firstName: string
-  lastName: string
-  age: number
-  phoneNumber: string
-  medicalRight: string
-  chronicDiseases: string | null
-  drugAllergy: string | null
-  profileImageUrl: string | null
-  registeredAt?: string
-}
 
 const prefixOptions = [
   'นาย',
@@ -95,110 +83,99 @@ export default function UserInfo() {
     return digits;
   };
 
-  useEffect(() => {
-    const savedData = localStorageService.getItem<PatientData>('patient-data')
-    
-    if (savedData) {
-      setPatientData(savedData)
-      setIsRegistered(true)
-      setImagePreview(savedData.profileImageUrl || '')
-      setDataSource('loading')
-      
-      // Verify with database in background
-      if (savedData.phoneNumber) {
-        fetch(`/api/data?type=patient-data&phoneNumber=${savedData.phoneNumber}`)
-          .then(response => {
-            if (response.ok) {
-              return response.json()
-            }
-            throw new Error('Patient not found in database')
-          })
-          .then(result => {
-            if (JSON.stringify(result.data) !== JSON.stringify(savedData)) {
-              setPatientData(result.data)
-              setImagePreview(result.data.profileImageUrl || '')
-              localStorageService.setItem('patient-data', result.data)
-            }
-            setDataSource('database')
-          })
-          .catch(error => {
-            setDataSource('offline')
-          })
-      } else {
-        setDataSource('offline')
-      }
+  const updateLocalState = useCallback((data: PatientData | null) => {
+    if (data) {
+      setPatientData(data);
+      setIsRegistered(true);
+      setImagePreview(data.profileImageUrl || '');
+      setDataSource('database');
+      setShowAuthForm(false);
+    } else {
+      // Reset state when logging out or no data
+      setPatientData(null);
+      setIsRegistered(false);
+      setShowAuthForm(true);
+      setLoginPhone('');
+      setImagePreview('');
+      setRawFile(null);
+      setFormData({
+        prefix: '',
+        firstName: '',
+        lastName: '',
+        age: '',
+        phoneNumber: '',
+        medicalRight: '',
+        chronicDiseases: '',
+        drugAllergy: '',
+      });
     }
-  }, [])
+  }, []);
+
+  useEffect(() => {
+    // ดึงข้อมูลจาก Local Storage ผ่าน service เมื่อ component โหลด
+    const initialData = dataService.getPatientData();
+    updateLocalState(initialData);
+
+    // สร้าง Listener เพื่อรับการอัปเดตข้อมูลจากที่อื่น
+    const handleDataUpdate = () => {
+      console.log('UserInfo component detected data update.');
+      const updatedData = dataService.getPatientData();
+      updateLocalState(updatedData);
+    };
+
+    window.addEventListener('appDataUpdated', handleDataUpdate);
+
+    return () => {
+      window.removeEventListener('appDataUpdated', handleDataUpdate);
+    };
+  }, [updateLocalState]);
   
   const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoginError('')
-    
-    if (!loginPhone) {
-      return
-    }
+    e.preventDefault();
+    setLoginError('');
+    const phoneDigits = loginPhone.replace(/[^\d]/g, '');
+    if (phoneDigits.length !== 10) return;
 
-    const phoneDigits = loginPhone.replace(/[^\d]/g, '')
-    
-    if (phoneDigits.length !== 10) {
-      return
-    }
-
-    setIsLoading(true)
+    setIsLoading(true);
     try {
-      const response = await fetch(`/api/user/login?phoneNumber=${phoneDigits}`)
-
-      if (response.status === 404) {
-        setLoginError('ไม่พบข้อมูลผู้ใช้ กรุณาลงทะเบียนก่อน')
-      } else if (!response.ok) {
-        throw new Error('Login failed')
-      } else {
-        const result = await response.json()
-        setPatientData(result.data)
-        setIsRegistered(true)
-        setShowAuthForm(false)
-        localStorageService.setItem('patient-data', result.data)
-        setDataSource('database')
-        showToast('เข้าสู่ระบบสำเร็จ!', 'success')
+      const response = await fetch(`/api/user/login?phoneNumber=${phoneDigits}`);
+      if (!response.ok) {
+        setLoginError('ไม่พบข้อมูลผู้ใช้ กรุณาลงทะเบียนก่อน');
+        throw new Error('Login failed');
       }
+      
+      const result = await response.json();
+      // 👈 ใช้ service ในการจัดการข้อมูลหลัง login
+      localStorageService.setItem('patient-data', result.data); // ยังต้อง set phoneNumber ก่อน
+      await dataService.fetchAllDataAndStore(); // ให้ service ดึงข้อมูลทั้งหมด
+      
+      setShowAuthForm(false);
+      showToast('เข้าสู่ระบบสำเร็จ!', 'success');
+
     } catch (error) {
-      console.error('Login Error:', error)
-      setLoginError('เกิดข้อผิดพลาดในการเข้าสู่ระบบ')
+      console.error('Login Error:', error);
+      if (!loginError) setLoginError('เกิดข้อผิดพลาดในการเข้าสู่ระบบ');
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   const handleLogout = () => {
-    setIsLogoutModalOpen(true)
-  }
+    setIsLogoutModalOpen(true);
+  };
 
   const confirmLogout = () => {
-    localStorageService.removeItem('patient-data')
-
-    setPatientData(null)
-    setIsRegistered(false)
-    setShowAuthForm(false)
-    setLoginPhone('')
-    setImagePreview('')
-    setRawFile(null)
-    setFormData({
-      prefix: '',
-      firstName: '',
-      lastName: '',
-      age: '',
-      phoneNumber: '',
-      medicalRight: '',
-      chronicDiseases: '',
-      drugAllergy: '',
-    })
-    setIsLogoutModalOpen(false)
-    showToast('ออกจากระบบแล้ว', 'info')
-  }
+    localStorageService.removeItem('patient-data');
+    localStorageService.removeItem('app-data');
+    updateLocalState(null);
+    window.dispatchEvent(new Event('appDataUpdated'));
+    setIsLogoutModalOpen(false);
+    showToast('ออกจากระบบแล้ว', 'info');
+  };
 
   const cancelLogout = () => {
-    setIsLogoutModalOpen(false)
-  }
+    setIsLogoutModalOpen(false);
+  };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
@@ -226,64 +203,48 @@ export default function UserInfo() {
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+    e.preventDefault();
+    setIsLoading(true);
 
-    setIsLoading(true)
+    const formDataToSend = new FormData();
+    const finalPrefix = formData.prefix === 'อื่นๆ' ? customPrefix : formData.prefix;
+    const finalMedicalRight = formData.medicalRight === 'อื่นๆ' ? customMedicalRight : formData.medicalRight;
+
+    formDataToSend.append('prefix', finalPrefix);
+    formDataToSend.append('firstName', formData.firstName);
+    formDataToSend.append('lastName', formData.lastName);
+    formDataToSend.append('age', formData.age.toString());
+    formDataToSend.append('phoneNumber', formData.phoneNumber.replace(/[^\d]/g, ''));
+    formDataToSend.append('medicalRight', finalMedicalRight);
+    formDataToSend.append('chronicDiseases', formData.chronicDiseases);
+    formDataToSend.append('drugAllergy', formData.drugAllergy);
+    
+    if (rawFile) {
+      formDataToSend.append('profileImage', rawFile);
+    }
 
     try {
-      const submitData = new FormData()
-      
-      const finalPrefix = formData.prefix === 'อื่นๆ' ? customPrefix : formData.prefix
-      const finalMedicalRight = formData.medicalRight === 'อื่นๆ' ? customMedicalRight : formData.medicalRight
-      
-      submitData.append('prefix', finalPrefix)
-      submitData.append('firstName', formData.firstName)
-      submitData.append('lastName', formData.lastName)
-      submitData.append('age', formData.age.toString())
-      submitData.append('phoneNumber', formData.phoneNumber.replace(/[^\d]/g, ''))
-      submitData.append('medicalRight', finalMedicalRight)
-      submitData.append('chronicDiseases', formData.chronicDiseases)
-      submitData.append('drugAllergy', formData.drugAllergy)
-      
-      if (rawFile) {
-        submitData.append('profileImage', rawFile)
-      }
-
-      const url = isEditing ? '/api/user/update' : '/api/user/register'
-
-      const response = await fetch(url, {
-        method: 'POST',
-        body: submitData,
-      })
-
-      if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(`API Error: ${response.status} - ${errorText}`)
-      }
-
-      const result = await response.json()
-
-      const updatedPatientData = result.data
-      localStorageService.setItem('patient-data', updatedPatientData)
-      setPatientData(updatedPatientData)
-      setRawFile(null)
-
       if (isEditing) {
-        setIsEditing(false)
-        setShowAuthForm(false)
-        showToast('แก้ไขข้อมูลสำเร็จ!', 'success')
+        // --- โหมดแก้ไข ---
+        // ใส่ phoneNumber เดิมเข้าไปใน form data สำหรับ API
+        if (patientData?.phoneNumber) {
+            formDataToSend.append('originalPhoneNumber', patientData.phoneNumber);
+        }
+        await dataService.updatePatient(formDataToSend as any);
+        showToast('บันทึกข้อมูลสำเร็จ!', 'success');
+        setIsEditing(false);
       } else {
-        setShowAuthForm(false)
-        setIsRegistered(true)
-        showToast('ลงทะเบียนสำเร็จ!', 'success')
+        // --- โหมดลงทะเบียนใหม่ ---
+        await dataService.registerPatient(formDataToSend);
+        showToast('ลงทะเบียนสำเร็จ!', 'success');
       }
     } catch (error) {
-      console.error('An unexpected error occurred:', error)
-      showToast('เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง', 'error')
+      console.error('Submit Error:', error);
+      showToast('เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง', 'error');
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   const handleEdit = () => {
     if (patientData) {

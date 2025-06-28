@@ -47,8 +47,15 @@ export async function GET(request: NextRequest) {
       }
     })
 
+    // 👈 **แก้ไขตรงนี้**
+    // แปลงค่า Date object ให้เป็น ISO string ก่อนส่ง response
+    const formattedNotifications = notifications.map(notification => ({
+      ...notification,
+      scheduledTime: notification.scheduledTime.toISOString(),
+    }));
+
     return NextResponse.json({ 
-      notifications 
+      notifications: formattedNotifications 
     })
 
   } catch (error) {

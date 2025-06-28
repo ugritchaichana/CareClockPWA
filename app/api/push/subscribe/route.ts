@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
     
     // บันทึกหรืออัปเดต subscription โดยใช้ endpoint เป็น unique key
     // Prisma Client ที่อัปเดตแล้วจะรู้จัก 'pushSubscription'
-    await prisma.pushSubscription.upsert({
+    await (prisma as any).pushSubscription.upsert({
       where: { endpoint: subscription.endpoint },
       update: {
         p256dh: subscription.keys.p256dh,

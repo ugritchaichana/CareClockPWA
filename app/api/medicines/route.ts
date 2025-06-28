@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
         beforeBed: medicine.beforeBed
       },
       medicineImageUrl: medicine.medicineImageUrl,
-      createdAt: medicine.createdAt.toISOString()
+      createdAt: medicine.createdAt?.toISOString() ?? ''
     }))
 
     return NextResponse.json({ 
@@ -182,7 +182,7 @@ export async function POST(request: NextRequest) {
           beforeBed: medicine.beforeBed
         },
         medicineImageUrl: medicine.medicineImageUrl,
-        createdAt: medicine.createdAt.toISOString()
+        createdAt: medicine.createdAt?.toISOString() ?? ''
       }
     })
 
@@ -316,7 +316,7 @@ export async function PUT(request: NextRequest) {
           beforeBed: medicine.beforeBed
         },
         medicineImageUrl: medicine.medicineImageUrl,
-        createdAt: medicine.createdAt.toISOString()
+        createdAt: medicine.createdAt?.toISOString() ?? ''
       }
     })
 
