@@ -1,123 +1,89 @@
-import { serve } from "std/http/server.ts"
-import { createClient } from "supabase-js"
-import webpush from "web-push"
-
-
-interface PushSubscription {
-  id: number;
-  endpoint: string;
-  p256dh: string;
-  auth: string;
-}
-
-interface Medicine {
-  medicineName: string;
-  dosage: number;
-}
-
-interface NotificationPayload {
-  id: number;
-  title: string;
-  patient: {
-    pushSubscriptions: PushSubscription[];
-  };
-  medicine: Medicine;
-}
+import { serve } from "std/http/server.ts";
+import { createClient } from "supabase-js";
+import * as webpush from "webpush";
 
 serve(async (req) => {
-  // 1. ตรวจสอบ Authorization Header
-  const authHeader = req.headers.get('Authorization')
-  if (authHeader !== `Bearer ${Deno.env.get('CRON_SECRET')}`) {
-    return new Response('Unauthorized', { status: 401 })
+  const auth = req.headers.get("Authorization") ?? "";
+  if (auth !== `Bearer ${Deno.env.get("CRON_SECRET")}`) {
+    return new Response("Unauthorized", { status: 401 });
   }
 
   try {
-    // 2. ตั้งค่า Web Push และ Supabase Client
     const vapidKeys = {
-      publicKey: Deno.env.get('NEXT_PUBLIC_VAPID_PUBLIC_KEY')!,
-      privateKey: Deno.env.get('VAPID_PRIVATE_KEY')!,
-    }
-    webpush.setVapidDetails(
-      `mailto:${Deno.env.get('VAPID_EMAIL') || 'support@example.com'}`,
-      vapidKeys.publicKey,
-      vapidKeys.privateKey
-    )
+      publicKey: Deno.env.get("NEXT_PUBLIC_VAPID_PUBLIC_KEY"),
+      privateKey: Deno.env.get("VAPID_PRIVATE_KEY"),
+    };
 
-    const supabaseClient = createClient(
-      Deno.env.get('NEXT_PUBLIC_SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    )
+    // --- จุดที่แก้ไข ---
+    const supabase = createClient(
+      Deno.env.get("NEXT_PUBLIC_SUPABASE_URL"),
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"),
+      { auth: { persistSession: false } } // เพิ่ม option นี้
+    );
+    // --- สิ้นสุดจุดที่แก้ไข ---
 
-    // 3. Query หาการแจ้งเตือนที่ถึงเวลา (แบบใหม่: ค้นหาเป็นช่วง)
-    const now = new Date()
-    const currentUTCHours = now.getUTCHours()
-    const currentUTCMinutes = now.getUTCMinutes()
+    const appServer = await webpush.ApplicationServer.new({
+      contactInformation: `mailto:${Deno.env.get("VAPID_EMAIL") || "support@example.com"}`,
+      vapidKeys,
+    });
 
-    // สร้างเวลาเริ่มต้นและสิ้นสุดของ "นาทีปัจจุบัน" ในรูปแบบ HH:mm:ss
-    const startTime = `${String(currentUTCHours).padStart(2, '0')}:${String(currentUTCMinutes).padStart(2, '0')}:00`
-    const endTime = `${String(currentUTCHours).padStart(2, '0')}:${String(currentUTCMinutes).padStart(2, '0')}:59`
+    const bkkNow = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Bangkok" }));
+    const start = new Date(bkkNow);
+    start.setSeconds(0, 0);
+    const end = new Date(bkkNow);
+    end.setSeconds(59, 999);
 
-
-    const { data: notificationsToSend, error: queryError } = await supabaseClient
-      .from('medicine_notifications')
+    const { data, error } = await supabase
+      .from("medicine_notifications")
       .select(`
         id,
         title,
+        scheduledTime,
         patient:patients (
           pushSubscriptions:push_subscriptions (id, endpoint, p256dh, auth)
         ),
-        medicine:medicines (medicineName, dosage)
+        medicine:medicine (medicineName, dosage)
       `)
-      .eq('isActive', true)
-      // --- จุดแก้ไข ---
-      // ค้นหาเวลาที่อยู่ระหว่าง startTime และ endTime
-      .gte('scheduledTime', startTime)
-      .lte('scheduledTime', endTime)
+      .eq("isActive", true)
+      .gte("scheduledTime", start.toISOString())
+      .lte("scheduledTime", end.toISOString());
 
-    if (queryError) {
-      throw queryError
+    if (error) throw error;
+
+    if (!data || data.length === 0) {
+      return new Response(JSON.stringify({ message: "No notifications to send." }), {
+        headers: { "Content-Type": "application/json" },
+      });
     }
 
-    if (!notificationsToSend || notificationsToSend.length === 0) {
-      return new Response(JSON.stringify({ message: 'No notifications to send at this time.' }), {
-        headers: { 'Content-Type': 'application/json' },
-      })
-    }
-
-    // 4. ส่ง Push Notification
-    const sendPromises = (notificationsToSend as unknown as NotificationPayload[]).flatMap((notification) => {
+    const promises = data.flatMap((n) => {
       const payload = JSON.stringify({
-        title: notification.title,
-        body: `ถึงเวลากินยา ${notification.medicine.medicineName} (${notification.medicine.dosage} เม็ด)`,
-        icon: '/asset/CareClockLOGO.PNG',
-        data: { url: `/?notification_id=${notification.id}` },
-      })
-
-      return notification.patient.pushSubscriptions.map((sub) =>
-        webpush.sendNotification(
-          {
+        title: n.title,
+        body: `ถึงเวลากินยา ${n.medicine.medicineName} (${n.medicine.dosage} เม็ด)`,
+        icon: "/asset/CareClockLOGO.PNG",
+        data: { url: `/?notification_id=${n.id}` },
+      });
+      return n.patient.pushSubscriptions.map(async (sub) => {
+        try {
+          const subscriber = appServer.subscribe({
             endpoint: sub.endpoint,
             keys: { p256dh: sub.p256dh, auth: sub.auth },
-          },
-          payload
-        ).catch(async (err: any) => {
-          console.error(`Failed to send push to ${sub.endpoint}. Status: ${err.statusCode}`)
-          if (err.statusCode === 410) {
-            await supabaseClient.from('push_subscriptions').delete().eq('id', sub.id)
-          }
-        })
-      )
-    })
+          });
+          await subscriber.pushTextMessage(payload, {});
+        } catch (err) {
+          console.error(`Push fail ${sub.endpoint}`, err);
+          await supabase.from("push_subscriptions").delete().eq("id", sub.id);
+        }
+      });
+    });
 
-    await Promise.all(sendPromises)
+    await Promise.all(promises);
 
-    return new Response(JSON.stringify({ success: true, message: `Sent ${notificationsToSend.length} notifications.` }), {
-      headers: { 'Content-Type': 'application/json' },
-    })
-
-  } catch (error) {
-    console.error('Cron job execute error:', error)
-    return new Response(String(error?.message || error), { status: 500 })
+    return new Response(JSON.stringify({ success: true, message: `Sent ${data.length} notifications.` }), {
+      headers: { "Content-Type": "application/json" },
+    });
+  } catch (err) {
+    console.error("Cron job error:", err);
+    return new Response(String(err?.message || err), { status: 500 });
   }
-})
-
+});
